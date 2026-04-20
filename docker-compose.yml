@@ -1,0 +1,28 @@
+name: tabario-video-compositor
+
+services:
+  tabario-video-compositor:
+    build: .
+    container_name: tabario-video-compositor
+    ports:
+      - "9312:9312"
+    volumes:
+      - "/mnt/tp-share/n8n-shared:/data/shared"
+    env_file:
+      - .env
+    environment:
+      - PORT=9312
+      - DATA_SHARED_BASE=/data/shared
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9312/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - tabario
+
+networks:
+  tabario:
+    external: true
+    name: tabario
