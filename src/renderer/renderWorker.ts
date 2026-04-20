@@ -26,7 +26,7 @@ export async function renderComposition(options: RenderOptions): Promise<void> {
   const composition = await selectComposition({
     serveUrl: bundleLocation,
     id: COMPOSITION_ID,
-    inputProps: manifest,
+    inputProps: manifest as unknown as Record<string, unknown>,
   });
 
   console.log(`[renderer] Starting render → ${outputPath}`);
@@ -35,7 +35,7 @@ export async function renderComposition(options: RenderOptions): Promise<void> {
     serveUrl: bundleLocation,
     codec: 'h264',
     outputLocation: outputPath,
-    inputProps: manifest,
+    inputProps: manifest as unknown as Record<string, unknown>,
     onProgress: ({ progress }) => {
       const pct = Math.round(progress * 100);
       console.log(`[renderer] Render progress: ${pct}%`);

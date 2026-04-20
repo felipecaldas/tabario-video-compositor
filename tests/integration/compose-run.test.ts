@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const API_BASE = `http://localhost:${process.env.PORT ?? 9312}`;
-const RUN_ID = 'gqmkbeuor4b';
+const RUN_ID = process.env.TEST_RUN_ID ?? 'QSvh1g9_9rLJ';
 const DATA_DIR = `/data/shared/${RUN_ID}`;
 const CLIENT_ID = process.env.TEST_CLIENT_ID ?? 'test-client';
 const SKIP_UPLOAD = process.env.SKIP_UPLOAD === 'true';

@@ -39,7 +39,7 @@ COPY . .
 # Copy Remotion components (not compiled — used directly by Remotion bundler)
 COPY remotion ./remotion
 
-RUN npm run build
+RUN npx tsc --project tsconfig.build.json
 
 EXPOSE 9312
 

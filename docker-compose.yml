@@ -7,9 +7,10 @@ services:
     ports:
       - "9312:9312"
     volumes:
-      - "/mnt/tp-share/n8n-shared:/data/shared"
+      - "${DATA_SHARED_PATH:-/mnt/tp-share/n8n-shared}:/data/shared"
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - PORT=9312
       - DATA_SHARED_BASE=/data/shared
