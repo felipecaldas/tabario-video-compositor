@@ -8,26 +8,40 @@ export class BrandProfileNotFoundError extends Error {
   }
 }
 
-let _client: SupabaseClient | null = null;
+function getSupabaseUrl(): string {
+  const url = process.env.SUPABASE_URL;
+  if (!url) throw new Error('SUPABASE_URL must be set');
+  return url;
+}
 
-function getSupabaseClient(): SupabaseClient {
-  if (!_client) {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_ANON_KEY;
-    if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be set');
-    _client = createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-  }
-  return _client;
+function getSupabaseAnonKey(): string {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key) throw new Error('SUPABASE_ANON_KEY must be set');
+  return key;
+}
+
+/**
+ * Create a per-request Supabase client that attaches the user's JWT
+ * via the Authorization header so RLS policies apply under the user's identity.
+ */
+function createUserClient(userAccessToken: string): SupabaseClient {
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      headers: { Authorization: `Bearer ${userAccessToken}` },
+    },
+  });
 }
 
 /**
  * Fetch and return the brand profile for a given client_id.
- * Uses the Supabase service-role key (server-side only).
+ * Uses the anon key + the forwarded user JWT so RLS applies under the user's identity.
  */
-export async function hydrateBrandProfile(clientId: string): Promise<BrandProfile> {
-  const supabase = getSupabaseClient();
+export async function hydrateBrandProfile(clientId: string, userAccessToken: string): Promise<BrandProfile> {
+  console.log(`[hydrator] Fetching brand profile for client_id=${clientId}`);
+  const supabase = createUserClient(userAccessToken);
 
   const { data, error } = await supabase
     .from('brand_profiles')

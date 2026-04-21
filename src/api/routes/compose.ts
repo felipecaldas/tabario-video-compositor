@@ -20,6 +20,7 @@ const HandoffPayloadSchema = z.object({
   target_resolution: z.string().default('1080x1920'),
   video_idea_id: z.string().optional(),
   workflow_id: z.string().optional(),
+  user_access_token: z.string().min(1, 'user_access_token is required'),
 });
 
 /** POST /compose/start — Accept handoff from edit-videos, enqueue compose job */
@@ -67,6 +68,7 @@ composeRouter.get('/:id', (req: Request, res: Response) => {
     compose_job_id: job.id,
     run_id: job.run_id,
     status: job.status,
+    final_video_path: job.final_video_path,
     output_url: job.output_url,
     error: job.error,
     created_at: job.created_at,

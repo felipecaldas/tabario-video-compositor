@@ -1,13 +1,18 @@
 /**
- * Integration test: full compose run using real files from /data/shared/gqmkbeuor4b
+ * Integration test: full compose run using real files from /data/shared/{TEST_RUN_ID}
  *
  * Run inside the container:
  *   docker exec tabario-video-compositor npm test -- --testPathPattern=integration
  *
  * Prerequisites:
  *   - Container is running with all env vars set
- *   - /data/shared/gqmkbeuor4b contains .mp4 clip files + a voiceover
- *   - SUPABASE_* vars are set (or SKIP_UPLOAD=true to skip upload step)
+ *   - /data/shared/{TEST_RUN_ID} contains .mp4 clip files + a voiceover
+ *   - SUPABASE_* vars are set (needed for brand profile hydration via anon key + user JWT)
+ *   - TEST_USER_ACCESS_TOKEN is set to a valid Supabase user JWT
+ *
+ * NOTE: The compositor no longer uploads to Supabase storage or fires the N8N webhook.
+ * It writes composed.mp4 to /data/shared/{run_id}/ and reports final_video_path.
+ * Upload + webhook are handled by edit-videos after polling GET /compose/:id.
  */
 
 import * as fs from 'fs';
@@ -17,6 +22,7 @@ const API_BASE = `http://localhost:${process.env.PORT ?? 9312}`;
 const RUN_ID = process.env.TEST_RUN_ID ?? 'QSvh1g9_9rLJ';
 const DATA_DIR = `/data/shared/${RUN_ID}`;
 const CLIENT_ID = process.env.TEST_CLIENT_ID ?? 'test-client';
+const USER_ACCESS_TOKEN = process.env.TEST_USER_ACCESS_TOKEN ?? 'test-token';
 const SKIP_UPLOAD = process.env.SKIP_UPLOAD === 'true';
 const POLL_INTERVAL_MS = 5000;
 const POLL_TIMEOUT_MS = 10 * 60 * 1000; // 10 min
@@ -85,10 +91,11 @@ describe('Integration: full compose run (gqmkbeuor4b)', () => {
       run_id: RUN_ID,
       client_id: CLIENT_ID,
       platform: 'tiktok',
-      video_format: 'mp4',
-      target_resolution: '1080x1920',
+      video_format: '9:16',
+      target_resolution: '720p',
       voiceover_path: voiceoverPath,
       clip_paths: clipPaths,
+      user_access_token: USER_ACCESS_TOKEN,
       brief: {
         hook: 'See what Tabario can do',
         summary: 'Demo of Tabario video generation',
@@ -117,16 +124,15 @@ describe('Integration: full compose run (gqmkbeuor4b)', () => {
     const final = await pollUntilDone(compose_job_id);
     console.log(`\n  Final job state:`, JSON.stringify(final, null, 2));
 
+    // Compositor's job ends at writing composed.mp4 — no upload here.
+    // Upload + webhook are handled by edit-videos after polling.
+    expect(final.status).toBe('done');
+    expect(typeof final.final_video_path).toBe('string');
+    expect((final.final_video_path as string).length).toBeGreaterThan(0);
+    console.log(`  Composed video at: ${final.final_video_path}`);
+
     if (SKIP_UPLOAD) {
-      // In SKIP_UPLOAD mode, failure at upload step is still a partial success
-      expect(['done', 'failed']).toContain(final.status);
-      if (final.status === 'failed') {
-        console.warn(`  Job failed (SKIP_UPLOAD=true): ${final.error}`);
-      }
-    } else {
-      expect(final.status).toBe('done');
-      expect(typeof final.output_url).toBe('string');
-      expect((final.output_url as string).length).toBeGreaterThan(0);
+      console.log('  SKIP_UPLOAD=true: skipping upload assertion (handled by edit-videos)');
     }
 
     // Verify manifest was generated

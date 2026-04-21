@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Sequence, Video, useVideoConfig } from 'remotion';
-import { CompositionManifest, ManifestOverlay } from '../src/types';
+import { BrandProfile, CompositionManifest, ManifestOverlay } from '../src/types';
 import { BrandProvider } from './BrandContext';
 import { KineticTitle } from './components/KineticTitle';
 import { StaggerTitle } from './components/StaggerTitle';
@@ -42,9 +42,17 @@ function renderOverlay(overlay: ManifestOverlay, runId: string): React.ReactNode
   );
 }
 
-export const TabarioComposition: React.FC<CompositionManifest> = (manifest) => {
+interface TabarioCompositionProps extends CompositionManifest {
+  brandProfile?: BrandProfile;
+}
+
+export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => {
   const { durationInFrames } = useVideoConfig();
-  const { scenes, overlays, audio_track, closing, run_id } = manifest;
+  const { scenes, overlays, audio_track, closing, run_id, brandProfile } = props;
+
+  if (brandProfile) {
+    console.log(`[remotion] BrandProvider initialised for client_id=${brandProfile.client_id}`);
+  }
 
   // Accumulate scene start frames
   let accFrame = 0;
@@ -57,7 +65,7 @@ export const TabarioComposition: React.FC<CompositionManifest> = (manifest) => {
   const voiceoverPath = resolveClipPath(run_id, audio_track.voiceover_filename);
 
   return (
-    <BrandProvider brand={{ id: '', client_id: manifest.client_id }}>
+    <BrandProvider brand={brandProfile ?? { id: '', client_id: props.client_id }}>
       <AbsoluteFill style={{ background: '#000' }}>
         {/* Scenes */}
         {sceneFrames.map((scene) => (

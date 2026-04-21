@@ -11,6 +11,7 @@ export interface HandoffPayload {
   target_resolution: string;
   video_idea_id?: string;
   workflow_id?: string;
+  user_access_token: string;
 }
 
 export type Platform = 'yt_shorts' | 'tiktok' | 'instagram' | 'x' | string;
@@ -27,6 +28,25 @@ export interface Brief {
   platform_notes?: string;
   aspect_ratio?: string;
   scenes?: BriefScene[];
+  platform_briefs?: PlatformBriefModel[];
+}
+
+export interface SceneBriefInput {
+  scene_number: number;
+  spoken_line: string;
+  caption_text: string;
+  duration_seconds: number;
+  visual_description: string;
+}
+
+export interface PlatformBriefModel {
+  platform: string;
+  hook?: string;
+  tone?: string;
+  aspect_ratio?: string;
+  scenes: SceneBriefInput[];
+  call_to_action?: string;
+  platform_notes?: string;
 }
 
 export interface BriefScene {
@@ -171,7 +191,7 @@ export interface NarrativeArc {
 
 // ─── Compose job ─────────────────────────────────────────────────────────────
 
-export type JobStatus = 'pending' | 'hydrating' | 'generating_manifest' | 'rendering' | 'post_processing' | 'uploading' | 'done' | 'failed';
+export type JobStatus = 'pending' | 'hydrating' | 'generating_manifest' | 'rendering' | 'post_processing' | 'done' | 'failed';
 
 export interface ComposeJob {
   id: string;
@@ -179,6 +199,7 @@ export interface ComposeJob {
   client_id: string;
   status: JobStatus;
   manifest?: CompositionManifest;
+  final_video_path?: string;
   output_url?: string;
   error?: string;
   created_at: Date;
