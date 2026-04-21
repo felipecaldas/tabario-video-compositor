@@ -1,24 +1,21 @@
-import { hydrateBrandProfile, BrandProfileNotFoundError } from '../../src/brand/hydrator';
-
 jest.mock('@supabase/supabase-js', () => ({
-  createClient: jest.fn(() => ({
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          single: jest.fn(),
-        })),
-      })),
-    })),
-  })),
+  createClient: jest.fn(),
 }));
 
-const { createClient } = require('@supabase/supabase-js');
-
 describe('hydrateBrandProfile', () => {
+  let hydrateBrandProfile: (clientId: string) => Promise<unknown>;
+  let BrandProfileNotFoundError: new (clientId: string) => Error;
+  let createClient: jest.Mock;
+
   beforeEach(() => {
+    jest.resetModules();
     process.env.SUPABASE_URL = 'https://test.supabase.co';
     process.env.SUPABASE_ANON_KEY = 'test-anon-key';
-    jest.clearAllMocks();
+    // Re-require after resetModules so the singleton _client is cleared
+    const mod = require('../../src/brand/hydrator');
+    hydrateBrandProfile = mod.hydrateBrandProfile;
+    BrandProfileNotFoundError = mod.BrandProfileNotFoundError;
+    createClient = require('@supabase/supabase-js').createClient;
   });
 
   it('returns typed BrandProfile on success', async () => {
@@ -42,12 +39,12 @@ describe('hydrateBrandProfile', () => {
       }),
     });
 
-    const profile = await hydrateBrandProfile('client-1');
+    const profile = await hydrateBrandProfile('client-1') as Record<string, unknown>;
     expect(profile.id).toBe('bp-1');
     expect(profile.client_id).toBe('client-1');
-    expect(profile.brand_colors?.primary).toBe('#ffffff');
+    expect((profile.brand_colors as Record<string, string>)?.primary).toBe('#ffffff');
     expect(profile.logo_primary_url).toBe('https://example.com/logo.png');
-    expect(profile.audio_targets?.voiceover_lufs).toBe(-16);
+    expect((profile.audio_targets as Record<string, number>)?.voiceover_lufs).toBe(-16);
   });
 
   it('throws BrandProfileNotFoundError when no row found', async () => {
