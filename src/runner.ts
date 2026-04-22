@@ -3,7 +3,7 @@ import { hydrateBrandProfile } from './brand/hydrator';
 import { generateManifest } from './manifest/generator';
 import { renderComposition } from './renderer/renderWorker';
 import { applyPostProcessing } from './postprocess/ffmpeg';
-import { ComposeJob, HandoffPayload, Brief, BriefScene, PlatformBriefModel, SceneBriefInput } from './types';
+import { ComposeJob, HandoffPayload, Brief, BriefScene, PlatformBriefModel, SceneBriefInput, VisualDirection } from './types';
 
 const DATA_SHARED_BASE = process.env.DATA_SHARED_BASE ?? '/data/shared';
 
@@ -65,6 +65,12 @@ function flattenActivePlatformBrief(brief: Brief, platform: string): Brief {
     visual_direction: s.visual_description,
   }));
 
+  // Forward the top-level visual_direction so the LLM sees mood, color_feel,
+  // shot_style, and branding_elements when generating the manifest.
+  const rawVisualDirection = (brief as Record<string, unknown>).visual_direction as
+    | VisualDirection
+    | undefined;
+
   return {
     hook: active.hook ?? brief.hook,
     narrative_structure: brief.narrative_structure,
@@ -73,6 +79,7 @@ function flattenActivePlatformBrief(brief: Brief, platform: string): Brief {
     call_to_action: active.call_to_action,
     platform_notes: active.platform_notes,
     aspect_ratio: active.aspect_ratio,
+    visual_direction: rawVisualDirection,
     scenes: flatScenes,
   };
 }

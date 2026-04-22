@@ -16,6 +16,13 @@ export interface HandoffPayload {
 
 export type Platform = 'yt_shorts' | 'tiktok' | 'instagram' | 'x' | string;
 
+export interface VisualDirection {
+  mood?: string;
+  color_feel?: string;
+  shot_style?: string;
+  branding_elements?: string;
+}
+
 export interface Brief {
   hook?: string;
   narrative_structure?: string;
@@ -27,6 +34,7 @@ export interface Brief {
   call_to_action?: string;
   platform_notes?: string;
   aspect_ratio?: string;
+  visual_direction?: VisualDirection;
   scenes?: BriefScene[];
   platform_briefs?: PlatformBriefModel[];
 }

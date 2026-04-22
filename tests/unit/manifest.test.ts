@@ -1,4 +1,4 @@
-import { CompositionManifestSchema } from '../../src/manifest/schema';
+import { CompositionManifestSchema, TextOverlaySchema } from '../../src/manifest/schema';
 
 const VALID_MANIFEST = {
   schema: 'compose.v1' as const,
