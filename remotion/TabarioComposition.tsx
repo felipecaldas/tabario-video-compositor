@@ -14,6 +14,7 @@ import { ScalePush } from './components/ScalePush';
 import { SplitHorizontal } from './components/SplitHorizontal';
 import { SplitVertical } from './components/SplitVertical';
 import { PictureInPicture } from './components/PictureInPicture';
+import { TypographicBackground } from './components/TypographicBackground';
 
 const DATA_SHARED_BASE = '/data/shared';
 

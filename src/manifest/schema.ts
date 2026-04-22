@@ -7,7 +7,14 @@ const ComponentTypeSchema = z.enum([
   'kinetic_title', 'stagger_title', 'lower_third', 'caption_bar',
   'split_horizontal', 'split_vertical', 'picture_in_picture',
   'soft_cut', 'color_wipe', 'scale_push', 'logo_reveal', 'end_card',
+  'typographic_background',
 ]);
+
+export const TextOverlaySchema = z.object({
+  component: z.enum(['kinetic_title', 'stagger_title', 'caption_bar']),
+  text: z.string(),
+  props: z.record(z.unknown()).optional(),
+});
 
 export const CompositionManifestSchema = z.object({
   schema: z.literal('compose.v1'),
@@ -22,10 +29,12 @@ export const CompositionManifestSchema = z.object({
   scenes: z.array(
     z.object({
       index: z.number().int().min(0),
-      clip_filename: z.string(),
+      clip_filename: z.string().optional(), // Optional for typographic scenes
       duration_frames: z.number().int().positive(),
       layout: LayoutTypeSchema,
       grade: GradeTypeSchema.optional(),
+      // Scene-level overlays for text-heavy scenes
+      scene_overlays: z.array(TextOverlaySchema).optional(),
     })
   ).min(1),
   transitions: z.array(
@@ -75,3 +84,4 @@ export const CompositionManifestSchema = z.object({
 });
 
 export type CompositionManifestInput = z.input<typeof CompositionManifestSchema>;
+export type TextOverlay = z.infer<typeof TextOverlaySchema>;
