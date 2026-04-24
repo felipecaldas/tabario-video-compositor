@@ -1,5 +1,5 @@
 import React from 'react';
-import { Video, useCurrentFrame, interpolate } from 'remotion';
+import { Video, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
 import { useBrand } from '../BrandContext';
 
 interface ColorWipeProps {
@@ -8,11 +8,15 @@ interface ColorWipeProps {
   accentColor?: string;
 }
 
+/**
+ * Brand-coloured wipe that sweeps from left to right over the current
+ * Sequence duration, revealing the next clip.
+ */
 export const ColorWipe: React.FC<ColorWipeProps> = ({ fromSrc, toSrc, accentColor }) => {
   const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
   const { colors } = useBrand();
   const color = accentColor ?? colors.accent ?? '#3B82F6';
-  const durationInFrames = 30;
   const half = durationInFrames / 2;
 
   const wipeWidth = interpolate(frame, [0, half, durationInFrames], [0, 100, 0], {

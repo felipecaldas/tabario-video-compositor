@@ -9,7 +9,7 @@ interface CaptionBarProps {
 export const CaptionBar: React.FC<CaptionBarProps> = ({ text }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
-  const { colors, bodyFontUrl } = useBrand();
+  const { colors, bodyFamily } = useBrand();
 
   const opacity = interpolate(frame, [0, 8, durationInFrames - 8, durationInFrames], [0, 1, 1, 0], {
     extrapolateLeft: 'clamp',
@@ -27,7 +27,7 @@ export const CaptionBar: React.FC<CaptionBarProps> = ({ text }) => {
         background: 'rgba(0,0,0,0.6)',
         backdropFilter: 'blur(4px)',
         opacity,
-        fontFamily: bodyFontUrl ? `url(${bodyFontUrl})` : 'sans-serif',
+        fontFamily: bodyFamily,
         fontSize: 28,
         fontWeight: 500,
         color: colors.primary ?? '#ffffff',

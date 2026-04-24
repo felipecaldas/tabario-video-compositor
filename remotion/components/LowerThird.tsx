@@ -10,7 +10,7 @@ interface LowerThirdProps {
 export const LowerThird: React.FC<LowerThirdProps> = ({ name, subtitle }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { colors, bodyFontUrl } = useBrand();
+  const { colors, bodyFamily } = useBrand();
 
   const slideIn = spring({ frame, fps, config: { damping: 18, stiffness: 100 } });
   const translateX = (1 - slideIn) * -400;
@@ -25,7 +25,7 @@ export const LowerThird: React.FC<LowerThirdProps> = ({ name, subtitle }) => {
         background: colors.accent ?? '#3B82F6',
         padding: '12px 24px 12px 40px',
         borderRadius: '0 8px 8px 0',
-        fontFamily: bodyFontUrl ? `url(${bodyFontUrl})` : 'sans-serif',
+        fontFamily: bodyFamily,
         maxWidth: '75%',
       }}
     >

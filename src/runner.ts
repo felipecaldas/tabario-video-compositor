@@ -10,7 +10,7 @@ const DATA_SHARED_BASE = process.env.DATA_SHARED_BASE ?? '/data/shared';
 type JobUpdate = Partial<Pick<ComposeJob, 'status' | 'manifest' | 'final_video_path' | 'error'>>;
 
 /**
- * Resolution map: target_resolution string → (width, height) for 9:16 portrait.
+ * Resolution map: legacy short keys → (width, height) for 9:16 portrait.
  * For 16:9 the values are swapped; for 1:1 the short side is used for both.
  */
 const RESOLUTION_MAP: Record<string, { width: number; height: number }> = {
@@ -19,19 +19,40 @@ const RESOLUTION_MAP: Record<string, { width: number; height: number }> = {
   '1080p': { width: 1080, height: 1920 },
 };
 
-/** Canonical (width, height) derived from video_format + target_resolution. */
-function resolveCanonicalDimensions(
+const WXH_PATTERN = /^(\d{2,5})x(\d{2,5})$/i;
+
+/**
+ * Derive canonical (width, height) from video_format + target_resolution.
+ * Accepts both legacy short keys (`480p`/`720p`/`1080p`) and explicit
+ * `WxH` strings (e.g. `1080x1920`, `720x1280`).  When the input is WxH
+ * the `video_format` override is ignored because the caller has already
+ * expressed both dimensions.  Unknown inputs fall back to 720p portrait
+ * with a console warning so the silent-fallback bug cannot recur.
+ */
+export function resolveCanonicalDimensions(
   videoFormat: string,
   targetResolution: string,
 ): { width: number; height: number } {
-  const base = RESOLUTION_MAP[targetResolution] ?? RESOLUTION_MAP['720p'];
+  const wxh = WXH_PATTERN.exec(targetResolution ?? '');
+  if (wxh) {
+    return { width: parseInt(wxh[1], 10), height: parseInt(wxh[2], 10) };
+  }
+
+  const base = RESOLUTION_MAP[targetResolution];
+  if (!base) {
+    console.warn(
+      `[runner] Unknown target_resolution="${targetResolution}"; defaulting to 720p portrait (720x1280)`,
+    );
+  }
+  const resolved = base ?? RESOLUTION_MAP['720p'];
+
   if (videoFormat === '16:9') {
-    return { width: base.height, height: base.width };
+    return { width: resolved.height, height: resolved.width };
   }
   if (videoFormat === '1:1') {
-    return { width: base.width, height: base.width };
+    return { width: resolved.width, height: resolved.width };
   }
-  return { width: base.width, height: base.height };
+  return { width: resolved.width, height: resolved.height };
 }
 
 /**
@@ -42,7 +63,7 @@ function resolveCanonicalDimensions(
  * prompt expects `brief.scenes` at the top level.  We merge the active
  * platform brief's fields into a flat object.
  */
-function flattenActivePlatformBrief(brief: Brief, platform: string): Brief {
+export function flattenActivePlatformBrief(brief: Brief, platform: string): Brief {
   const rawPlatformBriefs = (brief as Record<string, unknown>).platform_briefs as
     | PlatformBriefModel[]
     | undefined;
@@ -62,7 +83,10 @@ function flattenActivePlatformBrief(brief: Brief, platform: string): Brief {
 
   const flatScenes: BriefScene[] = (active.scenes ?? []).map((s: SceneBriefInput, idx: number) => ({
     index: idx,
-    description: s.visual_description ?? s.spoken_line ?? '',
+    // Prefer visual_description; fall back to spoken_line when the
+    // visual description is missing OR empty (|| rather than ?? so empty
+    // strings fall through to the spoken line).
+    description: (s.visual_description || s.spoken_line) ?? '',
     duration_seconds: s.duration_seconds,
     visual_direction: s.visual_description,
   }));
@@ -148,24 +172,36 @@ export async function runComposeJob(
     const h264ClipPaths: string[] = await Promise.all(
       payload.clip_paths.map((p) => ensureH264(p)),
     );
-    const h264ClipFilenames = h264ClipPaths.map((p) => basename(p));
-    // Patch manifest scenes to use the (possibly transcoded) filenames.
+
+    // Build filename → h264 filename map so scenes referencing the same
+    // original clip are patched regardless of scene ordering, and typographic
+    // scenes (no clip_filename) are preserved as-is.
+    const origToH264: Record<string, string> = {};
+    payload.clip_paths.forEach((orig, i) => {
+      origToH264[basename(orig)] = basename(h264ClipPaths[i]);
+    });
+
     manifest = {
       ...manifest,
-      scenes: manifest.scenes.map((scene: ManifestScene, i: number) => ({
+      scenes: manifest.scenes.map((scene: ManifestScene) => ({
         ...scene,
-        clip_filename: h264ClipFilenames[i] ?? scene.clip_filename,
+        clip_filename: scene.clip_filename
+          ? (origToH264[scene.clip_filename] ?? scene.clip_filename)
+          : undefined,
       })),
     };
 
     onUpdate({ status: 'rendering', manifest });
 
     // ── Step 5: Remotion render ────────────────────────────────────────────
+    // `publicDir=runDir` exposes the per-run clip directory to the Remotion
+    // bundle so `<Video src={staticFile(filename)}>` resolves correctly.
     console.log(`[runner] Starting Remotion render for run_id=${payload.run_id}`);
     await renderComposition({
       manifest,
       outputPath: composedRaw,
       brandProfile,
+      publicDir: runDir,
       onProgress: (pct) => console.log(`[runner] Render ${pct}%`),
     });
 

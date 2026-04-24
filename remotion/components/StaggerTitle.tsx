@@ -10,7 +10,7 @@ interface StaggerTitleProps {
 export const StaggerTitle: React.FC<StaggerTitleProps> = ({ text, color }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { colors, headingFontUrl } = useBrand();
+  const { colors, headingFamily } = useBrand();
 
   const words = text.split(' ');
 
@@ -25,7 +25,7 @@ export const StaggerTitle: React.FC<StaggerTitleProps> = ({ text, color }) => {
         flexWrap: 'wrap',
         gap: 12,
         padding: '0 48px',
-        fontFamily: headingFontUrl ? `url(${headingFontUrl})` : 'sans-serif',
+        fontFamily: headingFamily,
         fontSize: 64,
         fontWeight: 800,
         color: color ?? colors.primary ?? '#ffffff',

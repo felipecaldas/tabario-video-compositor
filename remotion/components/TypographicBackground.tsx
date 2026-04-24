@@ -17,7 +17,7 @@ export const TypographicBackground: React.FC<TypographicBackgroundProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { colors, headingFontUrl, titleCase } = useBrand();
+  const { colors, headingFamily, titleCase } = useBrand();
 
   const animatedProps = (() => {
     switch (animation) {
@@ -64,7 +64,7 @@ export const TypographicBackground: React.FC<TypographicBackgroundProps> = ({
     >
       <div
         style={{
-          fontFamily: headingFontUrl ? `url(${headingFontUrl})` : 'sans-serif',
+          fontFamily: headingFamily,
           fontSize: 96,
           fontWeight: 900,
           color: textColor,

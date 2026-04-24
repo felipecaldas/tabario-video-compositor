@@ -17,7 +17,7 @@ export const EndCard: React.FC<EndCardProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { colors, logoPrimaryUrl, bodyFontUrl, headingFontUrl } = useBrand();
+  const { colors, logoPrimaryUrl, bodyFamily, headingFamily } = useBrand();
 
   const opacity = spring({ frame, fps, config: { damping: 20, stiffness: 60 } });
   const translateY = (1 - opacity) * 40;
@@ -46,7 +46,7 @@ export const EndCard: React.FC<EndCardProps> = ({
       )}
       <div
         style={{
-          fontFamily: headingFontUrl ? `url(${headingFontUrl})` : 'sans-serif',
+          fontFamily: headingFamily,
           fontSize: 48,
           fontWeight: 800,
           color: colors.primary ?? '#ffffff',
@@ -59,7 +59,7 @@ export const EndCard: React.FC<EndCardProps> = ({
       {ctaUrl && (
         <div
           style={{
-            fontFamily: bodyFontUrl ? `url(${bodyFontUrl})` : 'sans-serif',
+            fontFamily: bodyFamily,
             fontSize: 28,
             color: colors.accent ?? '#3B82F6',
             textAlign: 'center',

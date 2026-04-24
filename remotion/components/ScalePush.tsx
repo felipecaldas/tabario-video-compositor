@@ -1,14 +1,19 @@
 import React from 'react';
-import { Video, useCurrentFrame, interpolate } from 'remotion';
+import { Video, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
 
 interface ScalePushProps {
   fromSrc: string;
   toSrc: string;
 }
 
+/**
+ * Scale-push transition: the outgoing clip zooms in and fades while the
+ * incoming clip zooms out of a smaller scale and fades in, synced to
+ * the current Sequence duration.
+ */
 export const ScalePush: React.FC<ScalePushProps> = ({ fromSrc, toSrc }) => {
   const frame = useCurrentFrame();
-  const durationInFrames = 30;
+  const { durationInFrames } = useVideoConfig();
 
   const fromScale = interpolate(frame, [0, durationInFrames], [1, 1.15], {
     extrapolateLeft: 'clamp',

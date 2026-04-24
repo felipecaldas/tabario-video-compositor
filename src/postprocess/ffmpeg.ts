@@ -5,7 +5,6 @@ import { AudioTargets } from '../types';
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_LUFS = -16;
-const DEFAULT_DUCKING_DB = -12;
 
 export interface PostProcessOptions {
   inputPath: string;
@@ -15,29 +14,21 @@ export interface PostProcessOptions {
 
 /**
  * Apply FFmpeg post-processing: LUFS normalisation + H.264 platform encoding.
- * Normalises voiceover to target LUFS, ducks background music by ducking_db.
+ *
+ * The post-pass loudness-normalises the already-mixed audio (voiceover +
+ * optional music) to the target LUFS.  Music ducking is applied upstream
+ * in the Remotion composition via `<Audio volume>` so the final mix is
+ * already balanced; this pass therefore applies ONLY loudnorm and does
+ * not attenuate the whole mix.
  */
 export async function applyPostProcessing(options: PostProcessOptions): Promise<void> {
   const { inputPath, outputPath, audioTargets } = options;
   const lufsTarget = audioTargets?.voiceover_lufs ?? DEFAULT_LUFS;
-  const duckingDb = audioTargets?.music_ducking_db ?? DEFAULT_DUCKING_DB;
 
-  console.log(`[ffmpeg] Post-processing: LUFS=${lufsTarget}, ducking=${duckingDb}dB`);
+  console.log(`[ffmpeg] Post-processing: LUFS=${lufsTarget}`);
   console.log(`[ffmpeg] Input: ${inputPath} → Output: ${outputPath}`);
 
-  // Two-pass loudness normalisation (EBU R128) + H.264 encoding
-  const args = [
-    '-i', inputPath,
-    '-af', `loudnorm=I=${lufsTarget}:LRA=11:TP=-1.5,volume=${duckingDb}dB`,
-    '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '23',
-    '-c:a', 'aac',
-    '-b:a', '192k',
-    '-movflags', '+faststart',
-    '-y',
-    outputPath,
-  ];
+  const args = buildFfmpegArgs(options);
 
   try {
     const { stderr } = await execFileAsync('ffmpeg', args);
@@ -101,16 +92,18 @@ export async function ensureH264(inputPath: string): Promise<string> {
 }
 
 /**
- * Build the FFmpeg argument list for testing (without executing).
+ * Build the FFmpeg argument list for `applyPostProcessing`.  Exported
+ * separately so unit tests can assert the exact flags without executing
+ * FFmpeg.  Applies loudnorm (EBU R128) to the mixed track and re-encodes
+ * the video to H.264 with faststart for web delivery.
  */
 export function buildFfmpegArgs(options: PostProcessOptions): string[] {
   const { inputPath, outputPath, audioTargets } = options;
   const lufsTarget = audioTargets?.voiceover_lufs ?? DEFAULT_LUFS;
-  const duckingDb = audioTargets?.music_ducking_db ?? DEFAULT_DUCKING_DB;
 
   return [
     '-i', inputPath,
-    '-af', `loudnorm=I=${lufsTarget}:LRA=11:TP=-1.5,volume=${duckingDb}dB`,
+    '-af', `loudnorm=I=${lufsTarget}:LRA=11:TP=-1.5`,
     '-c:v', 'libx264',
     '-preset', 'fast',
     '-crf', '23',

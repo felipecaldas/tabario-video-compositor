@@ -10,7 +10,7 @@ interface KineticTitleProps {
 export const KineticTitle: React.FC<KineticTitleProps> = ({ text, color }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { colors, headingFontUrl, titleCase } = useBrand();
+  const { colors, headingFamily, titleCase } = useBrand();
 
   const scale = spring({ frame, fps, config: { damping: 12, stiffness: 100 } });
   const opacity = spring({ frame, fps, config: { damping: 20, stiffness: 80 } });
@@ -32,7 +32,7 @@ export const KineticTitle: React.FC<KineticTitleProps> = ({ text, color }) => {
         justifyContent: 'center',
         opacity,
         transform: `scale(${scale})`,
-        fontFamily: headingFontUrl ? `url(${headingFontUrl})` : 'sans-serif',
+        fontFamily: headingFamily,
         fontSize: 72,
         fontWeight: 800,
         color: color ?? colors.primary ?? '#ffffff',

@@ -1,14 +1,17 @@
 import React from 'react';
-import { Video, useCurrentFrame, interpolate } from 'remotion';
+import { Video, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
 
 interface SoftCutProps {
   fromSrc: string;
   toSrc: string;
 }
 
+/**
+ * Cross-fade between two clips over the current Sequence's full duration.
+ */
 export const SoftCut: React.FC<SoftCutProps> = ({ fromSrc, toSrc }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames } = { durationInFrames: 30 };
+  const { durationInFrames } = useVideoConfig();
 
   const fromOpacity = interpolate(frame, [0, durationInFrames], [1, 0], {
     extrapolateLeft: 'clamp',

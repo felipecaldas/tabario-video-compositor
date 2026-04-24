@@ -133,7 +133,16 @@ export type ComponentType =
   | 'color_wipe'
   | 'scale_push'
   | 'logo_reveal'
-  | 'end_card';
+  | 'end_card'
+  | 'typographic_background';
+
+export type TextOverlayComponent = 'kinetic_title' | 'stagger_title' | 'caption_bar';
+
+export interface SceneOverlay {
+  component: TextOverlayComponent;
+  text: string;
+  props?: Record<string, unknown>;
+}
 
 export interface CompositionManifest {
   schema: 'compose.v1';
@@ -155,10 +164,12 @@ export interface CompositionManifest {
 
 export interface ManifestScene {
   index: number;
-  clip_filename: string;
+  /** Optional: omitted for purely typographic scenes with no underlying clip. */
+  clip_filename?: string;
   duration_frames: number;
   layout: LayoutType;
   grade?: GradeType;
+  scene_overlays?: SceneOverlay[];
 }
 
 export interface ManifestTransition {
