@@ -199,7 +199,7 @@ export interface NarrativeArc {
 
 // ─── Compose job ─────────────────────────────────────────────────────────────
 
-export type JobStatus = 'pending' | 'hydrating' | 'generating_manifest' | 'rendering' | 'post_processing' | 'done' | 'failed';
+export type JobStatus = 'pending' | 'hydrating' | 'generating_manifest' | 'transcoding' | 'rendering' | 'post_processing' | 'done' | 'failed';
 
 export interface ComposeJob {
   id: string;

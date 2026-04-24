@@ -2,18 +2,21 @@ import { join, basename } from 'path';
 import { hydrateBrandProfile } from './brand/hydrator';
 import { generateManifest } from './manifest/generator';
 import { renderComposition } from './renderer/renderWorker';
-import { applyPostProcessing } from './postprocess/ffmpeg';
-import { ComposeJob, HandoffPayload, Brief, BriefScene, PlatformBriefModel, SceneBriefInput, VisualDirection } from './types';
+import { applyPostProcessing, ensureH264 } from './postprocess/ffmpeg';
+import { ComposeJob, HandoffPayload, Brief, BriefScene, ManifestScene, PlatformBriefModel, SceneBriefInput, VisualDirection } from './types';
 
 const DATA_SHARED_BASE = process.env.DATA_SHARED_BASE ?? '/data/shared';
 
 type JobUpdate = Partial<Pick<ComposeJob, 'status' | 'manifest' | 'final_video_path' | 'error'>>;
 
-/** Resolution map: target_resolution string → (width, height) for 9:16 base. */
+/**
+ * Resolution map: target_resolution string → (width, height) for 9:16 portrait.
+ * For 16:9 the values are swapped; for 1:1 the short side is used for both.
+ */
 const RESOLUTION_MAP: Record<string, { width: number; height: number }> = {
-  '480p': { width: 270, height: 480 },
-  '720p': { width: 405, height: 720 },
-  '1080p': { width: 608, height: 1080 },
+  '480p': { width: 480, height: 854 },
+  '720p': { width: 720, height: 1280 },
+  '1080p': { width: 1080, height: 1920 },
 };
 
 /** Canonical (width, height) derived from video_format + target_resolution. */
@@ -26,8 +29,7 @@ function resolveCanonicalDimensions(
     return { width: base.height, height: base.width };
   }
   if (videoFormat === '1:1') {
-    const side = Math.round((base.width + base.height) / 2);
-    return { width: side, height: side };
+    return { width: base.width, height: base.width };
   }
   return { width: base.width, height: base.height };
 }
@@ -138,6 +140,23 @@ export async function runComposeJob(
       `(format=${payload.video_format}, resolution=${payload.target_resolution ?? '720p'})`,
     );
     manifest = { ...manifest, width, height };
+
+    // ── Step 4.5: Transcode clips to H.264 for browser compatibility ────────
+    // ComfyUI WAN models produce H.265/HEVC which Chrome (Remotion) cannot play.
+    onUpdate({ status: 'transcoding' });
+    console.log(`[runner] Ensuring clips are H.264-compatible for run_id=${payload.run_id}`);
+    const h264ClipPaths: string[] = await Promise.all(
+      payload.clip_paths.map((p) => ensureH264(p)),
+    );
+    const h264ClipFilenames = h264ClipPaths.map((p) => basename(p));
+    // Patch manifest scenes to use the (possibly transcoded) filenames.
+    manifest = {
+      ...manifest,
+      scenes: manifest.scenes.map((scene: ManifestScene, i: number) => ({
+        ...scene,
+        clip_filename: h264ClipFilenames[i] ?? scene.clip_filename,
+      })),
+    };
 
     onUpdate({ status: 'rendering', manifest });
 

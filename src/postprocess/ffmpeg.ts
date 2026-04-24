@@ -51,6 +51,56 @@ export async function applyPostProcessing(options: PostProcessOptions): Promise<
 }
 
 /**
+ * Probe the video codec of a file using ffprobe.
+ * Returns the codec name (e.g. "h264", "hevc") or null on failure.
+ */
+async function probeVideoCodec(filePath: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=codec_name',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      filePath,
+    ]);
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Transcode a video clip to H.264 in-place if it is not already H.264.
+ * Remotion/Chrome requires H.264 video; ComfyUI WAN models produce H.265.
+ * Returns the path to the H.264-compatible file (may be the original or a new file).
+ */
+export async function ensureH264(inputPath: string): Promise<string> {
+  const codec = await probeVideoCodec(inputPath);
+  if (codec === 'h264') {
+    console.log(`[ffmpeg] Clip already H.264, skipping transcode: ${inputPath}`);
+    return inputPath;
+  }
+
+  console.log(`[ffmpeg] Transcoding clip from ${codec ?? 'unknown'} → H.264: ${inputPath}`);
+  const outputPath = inputPath.replace(/(\.[^.]+)$/, '_h264$1');
+
+  await execFileAsync('ffmpeg', [
+    '-i', inputPath,
+    '-c:v', 'libx264',
+    '-preset', 'fast',
+    '-crf', '23',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'copy',
+    '-movflags', '+faststart',
+    '-y',
+    outputPath,
+  ]);
+
+  console.log(`[ffmpeg] Transcode complete: ${outputPath}`);
+  return outputPath;
+}
+
+/**
  * Build the FFmpeg argument list for testing (without executing).
  */
 export function buildFfmpegArgs(options: PostProcessOptions): string[] {
