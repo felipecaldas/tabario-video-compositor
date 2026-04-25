@@ -2,6 +2,7 @@ import React from 'react';
 import {
   AbsoluteFill,
   Audio,
+  Img,
   Sequence,
   staticFile,
   Video,
@@ -25,16 +26,18 @@ import { EndCard } from './components/EndCard';
 import { SoftCut } from './components/SoftCut';
 import { ColorWipe } from './components/ColorWipe';
 import { ScalePush } from './components/ScalePush';
+import { SlideTransition } from './components/SlideTransition';
+import { ZoomBlur } from './components/ZoomBlur';
+import { KenBurns } from './components/KenBurns';
+import { TalkingHeadScene } from './components/TalkingHeadScene';
+import { BrandAccentLine } from './components/BrandAccentLine';
+import { MotionBadge } from './components/MotionBadge';
+import { CinematicBars } from './components/CinematicBars';
 import { SplitHorizontal } from './components/SplitHorizontal';
 import { SplitVertical } from './components/SplitVertical';
 import { PictureInPicture } from './components/PictureInPicture';
 import { TypographicBackground } from './components/TypographicBackground';
 
-/**
- * Map a grade name to a CSS `filter` string applied to the scene's `<Video>`.
- * Keep the effects subtle — heavy colour shifts are best done upstream in the
- * clip generator rather than as a post-filter.
- */
 export function gradeToFilter(grade?: GradeType): string | undefined {
   switch (grade) {
     case 'desaturated_cool':
@@ -49,19 +52,14 @@ export function gradeToFilter(grade?: GradeType): string | undefined {
   }
 }
 
-/**
- * Convert a dB value to a linear volume multiplier (for `<Audio volume>`).
- * -12 dB → ~0.251; 0 dB → 1.0.
- */
 export function dbToLinear(db: number): number {
   return Math.pow(10, db / 20);
 }
 
-/**
- * Render the correct React node for a single overlay component entry.
- * Passing `sceneSrc` lets transition overlays fall back to the scene's
- * clip when the LLM omitted `fromSrc`/`toSrc` (best effort only).
- */
+function isImageFile(filename?: string): boolean {
+  return /\.(png|jpg|jpeg|webp|gif|avif)$/i.test(filename ?? '');
+}
+
 function renderOverlayBody(
   component: ManifestOverlay['component'],
   props: Record<string, unknown>,
@@ -105,6 +103,10 @@ function renderOverlayBody(
           showLogo={p.showLogo !== false}
         />
       );
+    case 'brand_accent_line':
+      return <BrandAccentLine position={p.position as 'bottom' | 'top' | 'middle' | undefined} />;
+    case 'motion_badge':
+      return <MotionBadge text={String(p.text ?? '')} />;
     case 'soft_cut':
       return <SoftCut fromSrc={fromSrc} toSrc={toSrc} />;
     case 'color_wipe':
@@ -151,10 +153,6 @@ interface SceneWithStart extends ManifestScene {
   start_frame: number;
 }
 
-/**
- * Top-level composition.  Assembles scenes, scene_overlays, manifest-level
- * overlays, transitions between adjacent scenes, voiceover and music.
- */
 export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => {
   const {
     scenes,
@@ -165,7 +163,6 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
     brandProfile,
   } = props;
 
-  // Precompute each scene's start frame (cumulative).
   let accFrame = 0;
   const sceneFrames: SceneWithStart[] = scenes.map((scene) => {
     const start = accFrame;
@@ -180,6 +177,46 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
   const renderScene = (scene: SceneWithStart): React.ReactNode => {
     const filter = gradeToFilter(scene.grade);
     const sceneSrc = scene.clip_filename ? staticFile(scene.clip_filename) : undefined;
+    const isImage = isImageFile(scene.clip_filename);
+    const useKenBurns = isImage && scene.motion !== 'static';
+
+    // Text budget gating: suppress heavy text overlays when the source image is already text-heavy
+    const density = scene.image_text_density ?? 'none';
+    const allowKinetic = density === 'none' || density === 'low';
+    const allowAnyOverlay = density !== 'high';
+    const filteredOverlays = (scene.scene_overlays ?? []).filter((ov: TextOverlay) => {
+      if (!allowAnyOverlay) return false;
+      if (!allowKinetic && (ov.component === 'kinetic_title' || ov.component === 'stagger_title')) return false;
+      return true;
+    });
+
+    // Build clip element — Img for static images, Video for clips
+    const clipElement = sceneSrc ? (
+      isImage ? (
+        <Img
+          src={sceneSrc}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            ...(filter ? { filter } : {}),
+          }}
+        />
+      ) : (
+        <Video
+          src={sceneSrc}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            ...(filter ? { filter } : {}),
+          }}
+        />
+      )
+    ) : null;
+
+    const wrappedClip =
+      useKenBurns && clipElement ? <KenBurns>{clipElement}</KenBurns> : clipElement;
 
     return (
       <Sequence
@@ -187,19 +224,14 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
         from={scene.start_frame}
         durationInFrames={scene.duration_frames}
       >
-        {sceneSrc && (
-          <Video
-            src={sceneSrc}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              ...(filter ? { filter } : {}),
-            }}
-          />
+        {/* Talking head layout overrides default clip rendering */}
+        {scene.talking_head_layout && sceneSrc ? (
+          <TalkingHeadScene src={sceneSrc} variant={scene.talking_head_layout} />
+        ) : (
+          wrappedClip
         )}
-        {/* Scene-level text overlays (TextOverlaySchema) */}
-        {scene.scene_overlays?.map((ov: TextOverlay, i: number) => (
+        {/* Scene-level text overlays (gated by text budget) */}
+        {filteredOverlays.map((ov: TextOverlay, i: number) => (
           <Sequence
             key={`scene-${scene.index}-ov-${i}`}
             from={0}
@@ -241,7 +273,6 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
     if (!fromScene || !toScene || !fromScene.clip_filename || !toScene.clip_filename) {
       return null;
     }
-    // Centre the transition on the boundary between the two scenes.
     const boundary = toScene.start_frame;
     const half = Math.floor(tr.duration_frames / 2);
     const from = Math.max(0, boundary - half);
@@ -258,6 +289,14 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
           <ColorWipe fromSrc={fromSrc} toSrc={toSrc} accentColor={tr.accent_color} />
         )}
         {tr.type === 'scale_push' && <ScalePush fromSrc={fromSrc} toSrc={toSrc} />}
+        {tr.type === 'slide_push' && (
+          <SlideTransition fromSrc={fromSrc} toSrc={toSrc} direction={tr.direction ?? 'left'} />
+        )}
+        {tr.type === 'zoom_blur' && <ZoomBlur fromSrc={fromSrc} toSrc={toSrc} />}
+        {/* 'slide' is a deprecated alias for slide_push left */}
+        {tr.type === 'slide' && (
+          <SlideTransition fromSrc={fromSrc} toSrc={toSrc} direction="left" />
+        )}
       </Sequence>
     );
   };
@@ -265,16 +304,10 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
   return (
     <BrandProvider brand={brandProfile ?? { id: '', client_id: props.client_id }}>
       <AbsoluteFill style={{ background: '#000' }}>
-        {/* Scenes */}
         {sceneFrames.map(renderScene)}
-
-        {/* Transitions (layered on top of scenes at their boundaries) */}
         {transitions.map(renderTransition)}
-
-        {/* Manifest-level overlays */}
         {overlays.map(renderManifestOverlay)}
 
-        {/* Closing end card */}
         <Sequence
           from={closing.start_frame}
           durationInFrames={closing.duration_frames}
@@ -287,11 +320,11 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
           />
         </Sequence>
 
-        {/* Voiceover (full duration, at target LUFS applied later by ffmpeg) */}
         <Audio src={voiceoverSrc} />
-
-        {/* Optional background music, ducked by music_ducking_db (linear) */}
         {musicUrl && <Audio src={musicUrl} volume={musicVolume} />}
+
+        {/* Optional cinematic bars — only when brand profile opts in */}
+        {brandProfile?.motion_style?.cinematic_bars && <CinematicBars />}
       </AbsoluteFill>
     </BrandProvider>
   );

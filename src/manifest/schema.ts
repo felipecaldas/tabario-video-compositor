@@ -1,13 +1,17 @@
 import { z } from 'zod';
 
-const TransitionTypeSchema = z.enum(['soft_cut', 'color_wipe', 'scale_push']);
+const TransitionTypeSchema = z.enum(['soft_cut', 'color_wipe', 'scale_push', 'slide_push', 'zoom_blur', 'slide']);
 const LayoutTypeSchema = z.enum(['fullscreen', 'split_horizontal', 'split_vertical', 'picture_in_picture']);
 const GradeTypeSchema = z.enum(['neutral', 'desaturated_cool', 'vibrant_warm', 'high_contrast']);
+const ImageTextDensitySchema = z.enum(['none', 'low', 'medium', 'high']);
+const MotionSchema = z.enum(['ken_burns', 'static']);
+const TalkingHeadLayoutSchema = z.enum(['full', 'sidebar', 'pip_bottom_right']);
+const SlideDirectionSchema = z.enum(['left', 'right', 'up', 'down']);
 const ComponentTypeSchema = z.enum([
   'kinetic_title', 'stagger_title', 'lower_third', 'caption_bar',
   'split_horizontal', 'split_vertical', 'picture_in_picture',
   'soft_cut', 'color_wipe', 'scale_push', 'logo_reveal', 'end_card',
-  'typographic_background',
+  'typographic_background', 'brand_accent_line', 'motion_badge',
 ]);
 
 export const TextOverlaySchema = z.object({
@@ -33,6 +37,9 @@ export const CompositionManifestSchema = z.object({
       duration_frames: z.number().int().positive(),
       layout: LayoutTypeSchema,
       grade: GradeTypeSchema.optional(),
+      image_text_density: ImageTextDensitySchema.optional(),
+      motion: MotionSchema.optional(),
+      talking_head_layout: TalkingHeadLayoutSchema.optional(),
       // Scene-level overlays for text-heavy scenes
       scene_overlays: z.array(TextOverlaySchema).optional(),
     })
@@ -43,6 +50,7 @@ export const CompositionManifestSchema = z.object({
       type: TransitionTypeSchema,
       duration_frames: z.number().int().positive(),
       accent_color: z.string().optional(),
+      direction: SlideDirectionSchema.optional(),
     })
   ),
   overlays: z.array(

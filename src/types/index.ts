@@ -101,6 +101,7 @@ export interface MotionStyle {
   pace?: 'slow' | 'medium' | 'fast';
   transition_preference?: TransitionType[];
   disallowed_effects?: string[];
+  cinematic_bars?: boolean;
 }
 
 export interface AudioTargets {
@@ -118,7 +119,11 @@ export interface CtaDefaults {
 
 // ─── Composition Manifest (LLM output, validated with Zod) ───────────────────
 
-export type TransitionType = 'soft_cut' | 'color_wipe' | 'scale_push';
+export type TransitionType = 'soft_cut' | 'color_wipe' | 'scale_push' | 'slide_push' | 'zoom_blur' | 'slide';
+export type SlideDirection = 'left' | 'right' | 'up' | 'down';
+export type ImageTextDensity = 'none' | 'low' | 'medium' | 'high';
+export type MotionType = 'ken_burns' | 'static';
+export type TalkingHeadLayout = 'full' | 'sidebar' | 'pip_bottom_right';
 export type LayoutType = 'fullscreen' | 'split_horizontal' | 'split_vertical' | 'picture_in_picture';
 export type GradeType = 'neutral' | 'desaturated_cool' | 'vibrant_warm' | 'high_contrast';
 export type ComponentType =
@@ -134,7 +139,9 @@ export type ComponentType =
   | 'scale_push'
   | 'logo_reveal'
   | 'end_card'
-  | 'typographic_background';
+  | 'typographic_background'
+  | 'brand_accent_line'
+  | 'motion_badge';
 
 export type TextOverlayComponent = 'kinetic_title' | 'stagger_title' | 'caption_bar';
 
@@ -169,6 +176,12 @@ export interface ManifestScene {
   duration_frames: number;
   layout: LayoutType;
   grade?: GradeType;
+  /** Controls overlay suppression when the source image is already text-heavy. */
+  image_text_density?: ImageTextDensity;
+  /** Enables Ken Burns motion on static AI-generated images. Defaults to ken_burns for image clips. */
+  motion?: MotionType;
+  /** When set, renders the clip using the specified presenter layout instead of default. */
+  talking_head_layout?: TalkingHeadLayout;
   scene_overlays?: SceneOverlay[];
 }
 
@@ -177,6 +190,8 @@ export interface ManifestTransition {
   type: TransitionType;
   duration_frames: number;
   accent_color?: string;
+  /** Direction for slide_push transitions. Defaults to 'left'. */
+  direction?: SlideDirection;
 }
 
 export interface ManifestOverlay {

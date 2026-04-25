@@ -1,5 +1,6 @@
 import express from 'express';
 import { composeRouter } from './routes/compose';
+import { testRenderRouter } from './routes/testRender';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '9312', 10);
@@ -11,6 +12,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/compose', composeRouter);
+app.use('/compose/test-render', testRenderRouter);
 
 app.listen(PORT, () => {
   console.log(`tabario-video-compositor listening on port ${PORT}`);
