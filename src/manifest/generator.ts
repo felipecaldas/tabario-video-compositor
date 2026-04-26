@@ -38,7 +38,7 @@ export interface ManifestGeneratorInput {
  */
 export async function generateManifest(input: ManifestGeneratorInput): Promise<CompositionManifest> {
   const systemPrompt = readFileSync(PROMPT_PATH, 'utf-8');
-  const model = process.env.OPENROUTER_MODEL ?? 'google/gemini-2.5-flash';
+  const model = process.env.OPENROUTER_MODEL ?? 'xiaomi/mimo-v2-pro';
 
   const userMessage = JSON.stringify({
     run_id: input.run_id,
@@ -85,6 +85,13 @@ export async function generateManifest(input: ManifestGeneratorInput): Promise<C
     const result = CompositionManifestSchema.safeParse(parsed);
     if (!result.success) {
       lastError = new Error(`Attempt ${attempt}: Manifest schema validation failed — ${JSON.stringify(result.error.flatten())}`);
+      console.warn(`[manifest] ${lastError.message}`);
+      continue;
+    }
+
+    const colorWipeCount = result.data.transitions.filter((t) => t.type === 'color_wipe').length;
+    if (colorWipeCount > 1) {
+      lastError = new Error(`Attempt ${attempt}: color_wipe used ${colorWipeCount} times — max 1 per video. Use slide_push, scale_push, zoom_blur, or soft_cut for remaining transitions.`);
       console.warn(`[manifest] ${lastError.message}`);
       continue;
     }

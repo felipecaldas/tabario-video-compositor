@@ -3,9 +3,9 @@ import {
   AbsoluteFill,
   Audio,
   Img,
+  OffthreadVideo,
   Sequence,
   staticFile,
-  Video,
 } from 'remotion';
 import {
   BrandProfile,
@@ -203,7 +203,7 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
           }}
         />
       ) : (
-        <Video
+        <OffthreadVideo
           src={sceneSrc}
           style={{
             width: '100%',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Video, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+import { OffthreadVideo, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
 
 interface ScalePushProps {
   fromSrc: string;
@@ -35,10 +35,10 @@ export const ScalePush: React.FC<ScalePushProps> = ({ fromSrc, toSrc }) => {
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div style={{ position: 'absolute', inset: 0, opacity: fromOpacity, transform: `scale(${fromScale})` }}>
-        <Video src={fromSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <OffthreadVideo src={fromSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
       <div style={{ position: 'absolute', inset: 0, opacity: toOpacity, transform: `scale(${toScale})` }}>
-        <Video src={toSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <OffthreadVideo src={toSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     </div>
   );

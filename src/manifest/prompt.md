@@ -211,3 +211,17 @@ Brand-card scenes are purely typographic/logo scenes with no underlying clip. De
 5. Always set `closing.show_logo: true` so the brand logo renders on the end card.
 
 **Never hallucinate a logo URL.** If `brand_profile.logo_primary_url` is null or missing, omit the `logo_url` prop entirely — do not substitute a placeholder URL.
+
+### Rule 9 — Surplus clip usage (PiP and split layouts)
+
+When `clip_filenames.length` exceeds the number of scenes needed for linear playback (one clip per scene), you have surplus clips. Use them to increase visual density rather than wasting them.
+
+**Detection:** surplus exists when `clip_filenames.length > scenes.length` after assigning one clip per content scene.
+
+**When surplus ≥ 2 clips:**
+- On approximately 30% of scenes (round down), set `layout` to `"picture_in_picture"` or `"split_horizontal"` instead of `"fullscreen"`.
+- For `picture_in_picture`: the scene's primary `clip_filename` is the main layer; the surplus clip is the overlay. The `PictureInPicture` component handles rendering — just set `layout: "picture_in_picture"` on the scene.
+- For `split_horizontal`: pair two consecutive clips from the same narrative arc — ideally clips that contrast visually (e.g. problem clip left / solution clip right).
+- Never use PiP or split on the opening scene (index 0), the closing scene, or a talking-head scene.
+- Prefer placing PiP/split on middle content scenes where visual variety has the most impact.
+- If surplus ≥ 4 clips, use at least one `split_horizontal` in addition to `picture_in_picture` scenes.
