@@ -87,7 +87,7 @@ Output ONLY a valid JSON object that exactly matches the `compose.v1` schema bel
 4. Use `audio_targets.voiceover_lufs` if present; default to -16.
 5. Use `audio_targets.music_ducking_db` if present; default to -12.
 6. Use `cta_defaults` from brand profile for the closing CTA when no explicit CTA in the brief.
-7. Every scene must have a `clip_filename` drawn from the provided `clip_filenames` list (in order).
+7. Assign `clip_filenames` in order to concept_visual and talking_head scenes only. Brand-card scenes (opening logo reveals, closing end screens — identified by `visual_description` containing words like "logo", "reveal", "brand intro", "end screen", "CTA card", "sign-off", or "closing card") must NOT have a `clip_filename` — they are rendered entirely by Remotion components.
 8. `duration_frames` per scene = clip duration in seconds × fps (assume 4s per clip if unknown).
 9. `closing.start_frame` = `duration_frames` - `closing.duration_frames`.
 10. If `brief.visual_direction.mood` is present, use it to inform `grade` on scenes:
@@ -159,3 +159,55 @@ Apply `brief.visual_direction.color_feel` to inform scene grades:
 ### Rule 7 — Branding elements
 
 If `brief.visual_direction.branding_elements` is present, add a `lower_third` or `logo_reveal` overlay on the first scene only. Do not repeat branding overlays throughout the video.
+
+### Rule 8 — Brand-card template routing (CRITICAL for brand fidelity)
+
+Brand-card scenes are purely typographic/logo scenes with no underlying clip. Detect them by `visual_description` keywords: "logo", "reveal", "brand intro", "end screen", "CTA card", "closing card", "sign-off", "wordmark".
+
+**Opening brand-card scenes** (first scene or explicitly an intro/reveal):
+1. Omit `clip_filename` for the scene.
+2. Check `brand_profile.approved_templates.opening`:
+   - If present, use that component value (`"logo_reveal"` or `"typographic_background"`).
+   - If absent, default to `"logo_reveal"`.
+3. Add a manifest `overlay` entry for this scene with the chosen component, passing brand assets in `props`:
+   ```json
+   {
+     "component": "logo_reveal",
+     "scene_index": <n>,
+     "start_frame": 0,
+     "duration_frames": <scene duration_frames>,
+     "props": {
+       "logo_url": "<brand_profile.logo_primary_url>",
+       "heading_font_url": "<brand_profile.heading_font_url>",
+       "body_font_url": "<brand_profile.body_font_url>",
+       "primary_color": "<brand_profile.brand_colors.primary>",
+       "accent_color": "<brand_profile.brand_colors.accent>"
+     }
+   }
+   ```
+   Omit any prop whose source field is null or undefined.
+
+**Closing brand-card scenes** (last scene or explicitly an end/CTA/closing):
+1. Omit `clip_filename` for the scene.
+2. Check `brand_profile.approved_templates.closing`:
+   - If present, use that value.
+   - If absent, default to `"end_card"` (which is already emitted as `closing.component`).
+3. If `approved_templates.closing` is `"typographic_background"`, add an overlay entry with:
+   ```json
+   {
+     "component": "typographic_background",
+     "scene_index": <n>,
+     "start_frame": 0,
+     "duration_frames": <scene duration_frames>,
+     "props": {
+       "heading_font_url": "<brand_profile.heading_font_url>",
+       "body_font_url": "<brand_profile.body_font_url>",
+       "primary_color": "<brand_profile.brand_colors.primary>",
+       "cta_text": "<brief.call_to_action or cta_defaults.url>"
+     }
+   }
+   ```
+4. Always populate `closing.cta.url` from `brand_profile.cta_defaults.url` when the brief has no explicit URL.
+5. Always set `closing.show_logo: true` so the brand logo renders on the end card.
+
+**Never hallucinate a logo URL.** If `brand_profile.logo_primary_url` is null or missing, omit the `logo_url` prop entirely — do not substitute a placeholder URL.

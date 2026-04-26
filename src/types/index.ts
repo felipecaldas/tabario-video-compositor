@@ -86,6 +86,7 @@ export interface BrandProfile {
   motion_style?: MotionStyle;
   audio_targets?: AudioTargets;
   cta_defaults?: CtaDefaults;
+  approved_templates?: ApprovedTemplates;
 }
 
 export interface BrandColors {
@@ -115,6 +116,15 @@ export interface CtaDefaults {
   url?: string;
   show_qr?: boolean;
   logo_position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+}
+
+/**
+ * Slot-based template approval map from brand_profiles.approved_templates (JSONB).
+ * Tells the manifest generator which Remotion component to use for each brand-card slot.
+ */
+export interface ApprovedTemplates {
+  opening?: 'logo_reveal' | 'typographic_background';
+  closing?: 'end_card' | 'typographic_background';
 }
 
 // ─── Composition Manifest (LLM output, validated with Zod) ───────────────────

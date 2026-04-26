@@ -72,5 +72,6 @@ export async function hydrateBrandProfile(clientId: string, userAccessToken: str
     motion_style: data.motion_style ?? undefined,
     audio_targets: data.audio_targets ?? undefined,
     cta_defaults: data.cta_defaults ?? undefined,
+    approved_templates: data.approved_templates ?? undefined,
   };
 }
