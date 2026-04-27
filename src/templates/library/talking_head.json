@@ -1,0 +1,37 @@
+{
+  "id": "talking_head",
+  "name": "Talking Head",
+  "description": "Presenter-led format: full-frame intro, b-roll cutaways with PIP, presenter close. Classic interview and explainer structure.",
+  "scene_blueprint": [
+    {
+      "role": "intro",
+      "duration_target_s": [3, 6],
+      "required_layout": "talking_head_full",
+      "required_overlay": { "component": "lower_third", "copy_role": "presenter_name_and_title" },
+      "cardinality": "one"
+    },
+    {
+      "role": "argument",
+      "duration_target_s": [4, 10],
+      "required_layout": "talking_head_pip",
+      "cardinality": "one_to_many"
+    },
+    {
+      "role": "close",
+      "duration_target_s": [3, 5],
+      "required_layout": "talking_head_full",
+      "required_overlay": { "component": "caption_bar", "copy_role": "closing_statement" },
+      "cardinality": "one"
+    }
+  ],
+  "required_assets": [
+    { "role": "presenter_clip", "type": "clip", "required": true, "description": "Primary talking head footage" },
+    { "role": "b_roll_clips", "type": "clip", "required": false, "description": "Supporting visuals for PIP cutaways" },
+    { "role": "voiceover", "type": "voiceover", "required": true }
+  ],
+  "closing": {
+    "component": "end_card",
+    "duration_s": 3,
+    "cta_role": "subscribe_or_follow"
+  }
+}

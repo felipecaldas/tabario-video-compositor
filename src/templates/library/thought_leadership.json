@@ -1,0 +1,50 @@
+{
+  "id": "thought_leadership",
+  "name": "Thought Leadership",
+  "description": "Opinion and authority format: bold question hook, talking-head argument, supporting visual, punchline close, soft CTA.",
+  "scene_blueprint": [
+    {
+      "role": "hook",
+      "duration_target_s": [1.5, 3],
+      "required_layout": "flexible",
+      "required_overlay": { "component": "kinetic_title", "copy_role": "provocative_question" },
+      "cardinality": "one"
+    },
+    {
+      "role": "argument",
+      "duration_target_s": [5, 12],
+      "required_layout": "talking_head_full",
+      "cardinality": "one_to_many"
+    },
+    {
+      "role": "highlight",
+      "duration_target_s": [3, 6],
+      "required_layout": "b_roll",
+      "required_overlay": { "component": "stagger_title", "copy_role": "supporting_stat_or_quote" },
+      "cardinality": "one"
+    },
+    {
+      "role": "punchline",
+      "duration_target_s": [2, 4],
+      "required_layout": "talking_head_full",
+      "required_overlay": { "component": "caption_bar", "copy_role": "key_insight" },
+      "cardinality": "one"
+    },
+    {
+      "role": "soft_cta",
+      "duration_target_s": [2, 3],
+      "required_layout": "flexible",
+      "cardinality": "one"
+    }
+  ],
+  "required_assets": [
+    { "role": "presenter_clip", "type": "clip", "required": true, "description": "Talking head of the thought leader" },
+    { "role": "supporting_clips", "type": "clip", "required": false, "description": "B-roll to illustrate the argument" },
+    { "role": "voiceover", "type": "voiceover", "required": true }
+  ],
+  "closing": {
+    "component": "end_card",
+    "duration_s": 3,
+    "cta_role": "follow_or_read_more"
+  }
+}

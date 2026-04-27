@@ -1,0 +1,39 @@
+{
+  "id": "luxury_minimal",
+  "name": "Luxury Minimal",
+  "description": "Aspirational, sparse style for premium brands. Slow motion, minimal overlays, elegant typography.",
+  "typography": {
+    "heading_scale": 0.085,
+    "body_scale": 0.055,
+    "caption_scale": 0.065,
+    "weight_heading": 600,
+    "weight_body": 400,
+    "case": "title",
+    "tracking": 0.08,
+    "line_height": 1.5
+  },
+  "caption_animation": {
+    "style": "subtle_fade",
+    "active_word_color": null,
+    "active_word_scale": 1.0,
+    "background": "none",
+    "position": "lower_third",
+    "max_words_visible": 5
+  },
+  "transitions": {
+    "preferred": ["soft_cut", "zoom_blur"],
+    "intensity": "subtle",
+    "color_wipe_max": 0
+  },
+  "motion": {
+    "energy": "low",
+    "pace": "slow",
+    "ken_burns_strength": 0.25
+  },
+  "grade": "desaturated_cool",
+  "overlays": {
+    "density": "minimal",
+    "badges_max": 0,
+    "use_lower_third": false
+  }
+}

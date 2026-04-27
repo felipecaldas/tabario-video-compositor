@@ -66,9 +66,32 @@ describe('CompositionManifestSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects invalid schema literal', () => {
-    const invalid = { ...VALID_MANIFEST, schema: 'compose.v2' };
+  it('rejects unknown schema literal', () => {
+    const invalid = { ...VALID_MANIFEST, schema: 'compose.v0' };
     const result = CompositionManifestSchema.safeParse(invalid);
     expect(result.success).toBe(false);
+  });
+
+  it('accepts compose.v2 schema literal', () => {
+    const v2 = { ...VALID_MANIFEST, schema: 'compose.v2' as const, style_id: 'tiktok_bold' };
+    const result = CompositionManifestSchema.safeParse(v2);
+    expect(result.success).toBe(true);
+  });
+
+  it('defaults style_id to corporate_clean when omitted', () => {
+    const result = CompositionManifestSchema.safeParse(VALID_MANIFEST);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.style_id).toBe('corporate_clean');
+    }
+  });
+
+  it('accepts optional use_case field', () => {
+    const withUseCase = { ...VALID_MANIFEST, use_case: 'ad' };
+    const result = CompositionManifestSchema.safeParse(withUseCase);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.use_case).toBe('ad');
+    }
   });
 });

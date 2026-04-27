@@ -17,6 +17,8 @@ import {
 } from '../src/types';
 import { TextOverlay } from '../src/manifest/schema';
 import { BrandProvider } from './BrandContext';
+import { StyleProvider } from './StyleContext';
+import { StyleRegistry, DEFAULT_STYLE_ID } from '../src/styles/registry';
 import { KineticTitle } from './components/KineticTitle';
 import { StaggerTitle } from './components/StaggerTitle';
 import { LowerThird } from './components/LowerThird';
@@ -301,7 +303,10 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
     );
   };
 
+  const editStyle = StyleRegistry.resolve(props.style_id ?? DEFAULT_STYLE_ID);
+
   return (
+    <StyleProvider style={editStyle}>
     <BrandProvider brand={brandProfile ?? { id: '', client_id: props.client_id }}>
       <AbsoluteFill style={{ background: '#000' }}>
         {sceneFrames.map(renderScene)}
@@ -327,5 +332,6 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
         {brandProfile?.motion_style?.cinematic_bars && <CinematicBars />}
       </AbsoluteFill>
     </BrandProvider>
+    </StyleProvider>
   );
 };

@@ -1,0 +1,39 @@
+{
+  "id": "documentary",
+  "name": "Documentary",
+  "description": "Desaturated, contemplative style for journalistic and long-form content. Minimal overlays, slow pacing.",
+  "typography": {
+    "heading_scale": 0.08,
+    "body_scale": 0.055,
+    "caption_scale": 0.065,
+    "weight_heading": 600,
+    "weight_body": 400,
+    "case": "sentence",
+    "tracking": 0.02,
+    "line_height": 1.45
+  },
+  "caption_animation": {
+    "style": "subtle_fade",
+    "active_word_color": null,
+    "active_word_scale": 1.0,
+    "background": "none",
+    "position": "lower_third",
+    "max_words_visible": 7
+  },
+  "transitions": {
+    "preferred": ["soft_cut", "slide_push"],
+    "intensity": "subtle",
+    "color_wipe_max": 0
+  },
+  "motion": {
+    "energy": "low",
+    "pace": "slow",
+    "ken_burns_strength": 0.3
+  },
+  "grade": "desaturated_cool",
+  "overlays": {
+    "density": "minimal",
+    "badges_max": 0,
+    "use_lower_third": true
+  }
+}

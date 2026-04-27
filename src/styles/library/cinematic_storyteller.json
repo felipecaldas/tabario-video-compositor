@@ -1,0 +1,39 @@
+{
+  "id": "cinematic_storyteller",
+  "name": "Cinematic Storyteller",
+  "description": "Teal-orange grade, slow Ken Burns, typewriter captions — perfect for narrative documentary-style content.",
+  "typography": {
+    "heading_scale": 0.09,
+    "body_scale": 0.06,
+    "caption_scale": 0.07,
+    "weight_heading": 700,
+    "weight_body": 400,
+    "case": "sentence",
+    "tracking": 0.04,
+    "line_height": 1.4
+  },
+  "caption_animation": {
+    "style": "typewriter",
+    "active_word_color": null,
+    "active_word_scale": 1.0,
+    "background": "none",
+    "position": "lower_third",
+    "max_words_visible": 6
+  },
+  "transitions": {
+    "preferred": ["soft_cut", "zoom_blur", "slide_push"],
+    "intensity": "subtle",
+    "color_wipe_max": 1
+  },
+  "motion": {
+    "energy": "low",
+    "pace": "slow",
+    "ken_burns_strength": 0.65
+  },
+  "grade": "cinematic_teal_orange",
+  "overlays": {
+    "density": "minimal",
+    "badges_max": 0,
+    "use_lower_third": true
+  }
+}

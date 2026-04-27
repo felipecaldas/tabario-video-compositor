@@ -1,0 +1,39 @@
+{
+  "id": "energetic_youth",
+  "name": "Energetic Youth",
+  "description": "Fast cuts, bold stagger titles, electric colors — built for Gen Z and high-energy lifestyle brands.",
+  "typography": {
+    "heading_scale": 0.12,
+    "body_scale": 0.075,
+    "caption_scale": 0.09,
+    "weight_heading": 900,
+    "weight_body": 600,
+    "case": "upper",
+    "tracking": 0.04,
+    "line_height": 1.05
+  },
+  "caption_animation": {
+    "style": "tiktok_bold",
+    "active_word_color": null,
+    "active_word_scale": 1.2,
+    "background": "pill",
+    "position": "center",
+    "max_words_visible": 3
+  },
+  "transitions": {
+    "preferred": ["zoom_blur", "scale_push", "color_wipe"],
+    "intensity": "punchy",
+    "color_wipe_max": 4
+  },
+  "motion": {
+    "energy": "high",
+    "pace": "fast",
+    "ken_burns_strength": 0.9
+  },
+  "grade": "vibrant_warm",
+  "overlays": {
+    "density": "rich",
+    "badges_max": 4,
+    "use_lower_third": false
+  }
+}

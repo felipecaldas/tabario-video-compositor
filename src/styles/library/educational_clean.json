@@ -1,0 +1,39 @@
+{
+  "id": "educational_clean",
+  "name": "Educational Clean",
+  "description": "High-readability style for how-to and tutorial content. Numbered step badges, typewriter captions, clear typography.",
+  "typography": {
+    "heading_scale": 0.09,
+    "body_scale": 0.06,
+    "caption_scale": 0.07,
+    "weight_heading": 700,
+    "weight_body": 500,
+    "case": "sentence",
+    "tracking": 0.01,
+    "line_height": 1.4
+  },
+  "caption_animation": {
+    "style": "typewriter",
+    "active_word_color": null,
+    "active_word_scale": 1.05,
+    "background": "bar",
+    "position": "lower_third",
+    "max_words_visible": 6
+  },
+  "transitions": {
+    "preferred": ["soft_cut", "slide_push", "scale_push"],
+    "intensity": "standard",
+    "color_wipe_max": 1
+  },
+  "motion": {
+    "energy": "medium",
+    "pace": "medium",
+    "ken_burns_strength": 0.4
+  },
+  "grade": "neutral",
+  "overlays": {
+    "density": "standard",
+    "badges_max": 5,
+    "use_lower_third": true
+  }
+}

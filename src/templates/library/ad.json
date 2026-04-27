@@ -1,0 +1,51 @@
+{
+  "id": "ad",
+  "name": "Ad",
+  "description": "Performance advertising structure: hook attention, present the problem, reveal the product, show benefits, drive a CTA.",
+  "scene_blueprint": [
+    {
+      "role": "hook",
+      "duration_target_s": [1, 2.5],
+      "required_layout": "flexible",
+      "required_overlay": { "component": "kinetic_title", "copy_role": "hook_headline" },
+      "cardinality": "one"
+    },
+    {
+      "role": "problem",
+      "duration_target_s": [2, 4],
+      "required_layout": "b_roll",
+      "cardinality": "one"
+    },
+    {
+      "role": "product",
+      "duration_target_s": [3, 5],
+      "required_layout": "product_shot",
+      "required_overlay": { "component": "stagger_title", "copy_role": "product_name" },
+      "cardinality": "one"
+    },
+    {
+      "role": "feature",
+      "duration_target_s": [2, 4],
+      "required_layout": "flexible",
+      "required_overlay": { "component": "motion_badge", "copy_role": "benefit_copy" },
+      "cardinality": "one_to_many"
+    },
+    {
+      "role": "cta",
+      "duration_target_s": [2, 3.5],
+      "required_layout": "product_shot",
+      "required_overlay": { "component": "kinetic_title", "copy_role": "cta_text" },
+      "cardinality": "one"
+    }
+  ],
+  "required_assets": [
+    { "role": "product_clip", "type": "clip", "required": true, "description": "Hero product shot" },
+    { "role": "voiceover", "type": "voiceover", "required": true },
+    { "role": "logo", "type": "logo", "required": false }
+  ],
+  "closing": {
+    "component": "end_card",
+    "duration_s": 3,
+    "cta_role": "purchase_or_learn_more"
+  }
+}

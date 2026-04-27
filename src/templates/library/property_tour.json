@@ -1,0 +1,45 @@
+{
+  "id": "property_tour",
+  "name": "Property Tour",
+  "description": "Real-estate showcase: exterior hook, interior walkthrough scenes, feature highlights, booking CTA.",
+  "scene_blueprint": [
+    {
+      "role": "exterior",
+      "duration_target_s": [2, 4],
+      "required_layout": "b_roll",
+      "required_overlay": { "component": "stagger_title", "copy_role": "property_address_or_name" },
+      "cardinality": "one"
+    },
+    {
+      "role": "interior",
+      "duration_target_s": [3, 6],
+      "required_layout": "b_roll",
+      "cardinality": "one_to_many"
+    },
+    {
+      "role": "highlight",
+      "duration_target_s": [2, 4],
+      "required_layout": "flexible",
+      "required_overlay": { "component": "lower_third", "copy_role": "feature_label" },
+      "cardinality": "one_to_many"
+    },
+    {
+      "role": "cta",
+      "duration_target_s": [2, 3],
+      "required_layout": "flexible",
+      "required_overlay": { "component": "kinetic_title", "copy_role": "contact_or_booking_cta" },
+      "cardinality": "one"
+    }
+  ],
+  "required_assets": [
+    { "role": "exterior_clip", "type": "clip", "required": true, "description": "Exterior drone or walk-up shot" },
+    { "role": "interior_clips", "type": "clip", "required": true, "description": "Room-by-room footage" },
+    { "role": "voiceover", "type": "voiceover", "required": true },
+    { "role": "logo", "type": "logo", "required": false }
+  ],
+  "closing": {
+    "component": "end_card",
+    "duration_s": 4,
+    "cta_role": "contact_agent_or_book_viewing"
+  }
+}

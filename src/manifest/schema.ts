@@ -21,7 +21,9 @@ export const TextOverlaySchema = z.object({
 });
 
 export const CompositionManifestSchema = z.object({
-  schema: z.literal('compose.v1'),
+  schema: z.union([z.literal('compose.v1'), z.literal('compose.v2')]),
+  style_id: z.string().default('corporate_clean'),
+  use_case: z.string().optional(),
   brief_id: z.string().optional(),
   client_id: z.string(),
   run_id: z.string(),

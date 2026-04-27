@@ -1,0 +1,38 @@
+{
+  "id": "how_to",
+  "name": "How-To",
+  "description": "Tutorial/educational format: intro sets context, numbered steps walk through the process, recap closes with key takeaway.",
+  "scene_blueprint": [
+    {
+      "role": "intro",
+      "duration_target_s": [2, 4],
+      "required_layout": "talking_head_full",
+      "required_overlay": { "component": "stagger_title", "copy_role": "tutorial_title" },
+      "cardinality": "one"
+    },
+    {
+      "role": "step",
+      "duration_target_s": [3, 7],
+      "required_layout": "flexible",
+      "required_overlay": { "component": "motion_badge", "copy_role": "step_number_and_label" },
+      "cardinality": "one_to_many"
+    },
+    {
+      "role": "recap",
+      "duration_target_s": [2, 4],
+      "required_layout": "talking_head_full",
+      "required_overlay": { "component": "caption_bar", "copy_role": "key_takeaway" },
+      "cardinality": "one"
+    }
+  ],
+  "required_assets": [
+    { "role": "presenter_clip", "type": "clip", "required": false, "description": "Talking head footage" },
+    { "role": "step_clips", "type": "clip", "required": true, "description": "Screen recordings or demonstration footage" },
+    { "role": "voiceover", "type": "voiceover", "required": true }
+  ],
+  "closing": {
+    "component": "end_card",
+    "duration_s": 3,
+    "cta_role": "subscribe_or_follow"
+  }
+}

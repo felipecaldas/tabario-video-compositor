@@ -1,0 +1,39 @@
+{
+  "id": "neon_creator",
+  "name": "Neon Creator",
+  "description": "Vibrant, glow-accented style for creator and gaming content. Karaoke captions with per-word color pop.",
+  "typography": {
+    "heading_scale": 0.1,
+    "body_scale": 0.065,
+    "caption_scale": 0.08,
+    "weight_heading": 800,
+    "weight_body": 600,
+    "case": "upper",
+    "tracking": 0.02,
+    "line_height": 1.15
+  },
+  "caption_animation": {
+    "style": "karaoke",
+    "active_word_color": null,
+    "active_word_scale": 1.12,
+    "background": "box",
+    "position": "lower_third",
+    "max_words_visible": 4
+  },
+  "transitions": {
+    "preferred": ["color_wipe", "zoom_blur", "scale_push"],
+    "intensity": "punchy",
+    "color_wipe_max": 4
+  },
+  "motion": {
+    "energy": "high",
+    "pace": "fast",
+    "ken_burns_strength": 0.75
+  },
+  "grade": "vibrant_warm",
+  "overlays": {
+    "density": "rich",
+    "badges_max": 4,
+    "use_lower_third": false
+  }
+}

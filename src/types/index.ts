@@ -12,6 +12,10 @@ export interface HandoffPayload {
   video_idea_id?: string;
   workflow_id?: string;
   user_access_token: string;
+  /** Requested EditStyle — resolved by StyleRegistry; defaults to 'corporate_clean'. */
+  style_id?: StyleId;
+  /** Requested use-case template — resolved by TemplateRegistry. */
+  use_case?: UseCaseId;
 }
 
 export type Platform = 'yt_shorts' | 'tiktok' | 'instagram' | 'x' | string;
@@ -126,6 +130,8 @@ export type MotionType = 'ken_burns' | 'static';
 export type TalkingHeadLayout = 'full' | 'sidebar' | 'pip_bottom_right';
 export type LayoutType = 'fullscreen' | 'split_horizontal' | 'split_vertical' | 'picture_in_picture';
 export type GradeType = 'neutral' | 'desaturated_cool' | 'vibrant_warm' | 'high_contrast';
+export type StyleId = string;
+export type UseCaseId = 'ad' | 'how_to' | 'property_tour' | 'talking_head' | 'thought_leadership' | string;
 export type ComponentType =
   | 'kinetic_title'
   | 'stagger_title'
@@ -152,10 +158,14 @@ export interface SceneOverlay {
 }
 
 export interface CompositionManifest {
-  schema: 'compose.v1';
+  schema: 'compose.v1' | 'compose.v2';
   brief_id?: string;
   client_id: string;
   run_id: string;
+  /** EditStyle id — defaults to 'corporate_clean' when omitted (v1 backwards compat). */
+  style_id?: StyleId;
+  /** UseCaseTemplate id — optional; used by the slot-filling LLM path. */
+  use_case?: UseCaseId;
   platform: Platform;
   fps: number;
   width: number;
@@ -225,7 +235,7 @@ export interface NarrativeArc {
 
 // ─── Compose job ─────────────────────────────────────────────────────────────
 
-export type JobStatus = 'pending' | 'hydrating' | 'generating_manifest' | 'transcoding' | 'rendering' | 'post_processing' | 'done' | 'failed';
+export type JobStatus = 'pending' | 'hydrating' | 'resolving_style' | 'generating_manifest' | 'transcoding' | 'rendering' | 'post_processing' | 'done' | 'failed';
 
 export interface ComposeJob {
   id: string;

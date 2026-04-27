@@ -1,0 +1,39 @@
+{
+  "id": "tiktok_bold",
+  "name": "TikTok Bold",
+  "description": "Punchy, high-contrast style built for short-form virality. Big bold captions, fast cuts, vivid colors.",
+  "typography": {
+    "heading_scale": 0.11,
+    "body_scale": 0.07,
+    "caption_scale": 0.085,
+    "weight_heading": 900,
+    "weight_body": 600,
+    "case": "upper",
+    "tracking": 0.03,
+    "line_height": 1.1
+  },
+  "caption_animation": {
+    "style": "tiktok_bold",
+    "active_word_color": null,
+    "active_word_scale": 1.18,
+    "background": "pill",
+    "position": "lower_third",
+    "max_words_visible": 3
+  },
+  "transitions": {
+    "preferred": ["scale_push", "zoom_blur", "color_wipe"],
+    "intensity": "punchy",
+    "color_wipe_max": 3
+  },
+  "motion": {
+    "energy": "high",
+    "pace": "fast",
+    "ken_burns_strength": 0.8
+  },
+  "grade": "high_contrast",
+  "overlays": {
+    "density": "rich",
+    "badges_max": 3,
+    "use_lower_third": false
+  }
+}
