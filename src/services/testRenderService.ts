@@ -1,11 +1,16 @@
 import { readdirSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { CompositionManifest, BrandProfile, TransitionType, Brief } from '../types';
+import {
+  CompositionManifest, BrandProfile, TransitionType, Brief,
+  LayoutType, TalkingHeadLayout, TextOverlayComponent, ComponentType,
+} from '../types';
 import { CompositionManifestSchema } from '../manifest/schema';
 import { renderComposition } from '../renderer/renderWorker';
 import { ensureH264 } from '../postprocess/ffmpeg';
-import { hydrateBrandProfile } from '../brand/hydrator';
+import { hydrateBrandProfile, BrandProfileNotFoundError } from '../brand/hydrator';
 import { generateManifest } from '../manifest/generator';
+import { TemplateRegistry } from '../templates/registry';
+import { SceneSlot } from '../templates/schema';
 
 const DATA_SHARED_BASE = process.env.DATA_SHARED_BASE ?? '/data/shared';
 
@@ -39,7 +44,7 @@ export function scanRunDirectory(runId: string, basePath?: string): { clips: Cli
   const clips: ClipMeta[] = files
     .filter((f) =>
       /^(\d{3})_ComfyUI_\d+_\.mp4$/i.test(f) ||
-      /^(video|image|talking_head)_\d+\.(mp4|webm|png|jpg|jpeg|webp)$/i.test(f)
+      /^(video|talking_head)_\d+\.(mp4|webm)$/i.test(f)
     )
     .map((filename) => {
       const comfMatch = filename.match(/^(\d{3})_ComfyUI_\d+_\.mp4$/i);
@@ -56,17 +61,32 @@ export function scanRunDirectory(runId: string, basePath?: string): { clips: Cli
   return { clips, hasVoiceover };
 }
 
+export type AspectRatio = '9:16' | '16:9' | '1:1';
+
 export function buildStubManifest(
   clips: ClipMeta[],
   platform: string,
   runId: string,
   clientId: string,
   fps: number = 24,
+  aspectRatio?: AspectRatio,
 ): CompositionManifest {
-  const isVertical = platform === 'tiktok' || platform === 'instagram' || platform === 'yt_shorts';
-  const is11 = platform === 'x_square';
-  const width = is11 ? 1080 : isVertical ? 1080 : 1920;
-  const height = is11 ? 1080 : isVertical ? 1920 : 1080;
+  let width: number;
+  let height: number;
+
+  if (aspectRatio === '9:16') {
+    width = 1080; height = 1920;
+  } else if (aspectRatio === '16:9') {
+    width = 1920; height = 1080;
+  } else if (aspectRatio === '1:1') {
+    width = 1080; height = 1080;
+  } else {
+    const isVertical = platform === 'tiktok' || platform === 'instagram' || platform === 'yt_shorts';
+    const is11 = platform === 'x_square';
+    width = is11 ? 1080 : isVertical ? 1080 : 1920;
+    height = is11 ? 1080 : isVertical ? 1920 : 1080;
+  }
+
   const sceneDurationFrames = fps * 4;
 
   const scenes = clips.map((clip, i) => ({
@@ -117,6 +137,156 @@ export function buildStubManifest(
   const result = CompositionManifestSchema.safeParse(raw);
   if (!result.success) {
     throw new Error(`buildStubManifest produced invalid manifest: ${result.error.message}`);
+  }
+  return result.data as unknown as CompositionManifest;
+}
+
+function mapRequiredLayout(required: SceneSlot['required_layout']): LayoutType {
+  return required === 'split' ? 'split_horizontal' : 'fullscreen';
+}
+
+function mapTalkingHeadLayout(required: SceneSlot['required_layout']): TalkingHeadLayout | undefined {
+  if (required === 'talking_head_full') return 'full';
+  if (required === 'talking_head_pip') return 'pip_bottom_right';
+  return undefined;
+}
+
+function allocateClipsToSlots(
+  slots: SceneSlot[],
+  clipCount: number,
+): Array<{ slot: SceneSlot; count: number }> {
+  const oneCount = slots.filter((s) => s.cardinality === 'one').length;
+  const manyCount = slots.filter((s) => s.cardinality === 'one_to_many').length;
+  const extra = Math.max(0, clipCount - oneCount - manyCount);
+  const baseExtra = manyCount > 0 ? Math.floor(extra / manyCount) : 0;
+  const remainder = manyCount > 0 ? extra % manyCount : 0;
+
+  let manyIdx = 0;
+  return slots.map((slot) => {
+    if (slot.cardinality === 'one') return { slot, count: 1 };
+    const bonus = manyIdx < remainder ? 1 : 0;
+    manyIdx++;
+    return { slot, count: 1 + baseExtra + bonus };
+  });
+}
+
+export function buildTemplateManifest(
+  templateId: string,
+  clips: ClipMeta[],
+  platform: string,
+  runId: string,
+  clientId: string,
+  fps: number = 24,
+  aspectRatio?: AspectRatio,
+): CompositionManifest {
+  const template = TemplateRegistry.resolve(templateId);
+
+  let width: number;
+  let height: number;
+  if (aspectRatio === '9:16') { width = 1080; height = 1920; }
+  else if (aspectRatio === '16:9') { width = 1920; height = 1080; }
+  else if (aspectRatio === '1:1') { width = 1080; height = 1080; }
+  else {
+    const isVertical = platform === 'tiktok' || platform === 'instagram' || platform === 'yt_shorts';
+    const is11 = platform === 'x_square';
+    width = is11 ? 1080 : isVertical ? 1080 : 1920;
+    height = is11 ? 1080 : isVertical ? 1920 : 1080;
+  }
+
+  const allocations = allocateClipsToSlots(template.scene_blueprint, clips.length);
+
+  const scenes: CompositionManifest['scenes'] = [];
+  const overlays: CompositionManifest['overlays'] = [];
+  let sceneIdx = 0;
+  let clipCursor = 0;
+  let accFrame = 0;
+
+  for (const { slot, count } of allocations) {
+    const [minS, maxS] = slot.duration_target_s;
+    const durationFrames = Math.round(((minS + maxS) / 2) * fps);
+
+    for (let i = 0; i < count; i++) {
+      const clip = clips[clipCursor % clips.length];
+      clipCursor++;
+
+      const talkingHeadLayout = mapTalkingHeadLayout(slot.required_layout);
+
+      const scene: CompositionManifest['scenes'][number] = {
+        index: sceneIdx,
+        clip_filename: clip.filename,
+        duration_frames: durationFrames,
+        layout: mapRequiredLayout(slot.required_layout),
+        ...(talkingHeadLayout ? { talking_head_layout: talkingHeadLayout } : {}),
+      };
+
+      if (slot.required_overlay) {
+        const comp = slot.required_overlay.component;
+        const copyText = `[${slot.required_overlay.copy_role}]`;
+        const isSceneOverlayComp = comp === 'kinetic_title' || comp === 'stagger_title' || comp === 'caption_bar';
+
+        if (isSceneOverlayComp) {
+          scene.scene_overlays = [{ component: comp as TextOverlayComponent, text: copyText }];
+        } else {
+          // lower_third, motion_badge — use manifest-level overlay
+          overlays.push({
+            component: comp as ComponentType,
+            scene_index: sceneIdx,
+            start_frame: accFrame + Math.round(fps * 0.5),
+            duration_frames: Math.round(durationFrames * 0.6),
+            props: comp === 'lower_third' ? { name: copyText } : { text: copyText },
+          });
+        }
+      }
+
+      scenes.push(scene);
+      accFrame += durationFrames;
+      sceneIdx++;
+    }
+  }
+
+  const transitions = scenes.slice(0, -1).map((_, i) => ({
+    between: [i, i + 1] as [number, number],
+    type: 'soft_cut' as TransitionType,
+    duration_frames: 15,
+  }));
+
+  const closingDuration = fps * 3;
+
+  const raw = {
+    schema: 'compose.v2' as const,
+    style_id: 'corporate_clean',
+    use_case: template.id,
+    client_id: clientId,
+    run_id: runId,
+    platform,
+    fps,
+    width,
+    height,
+    duration_frames: accFrame + closingDuration,
+    scenes,
+    transitions,
+    overlays,
+    audio_track: {
+      voiceover_filename: 'voiceover.mp3',
+      lufs_target: -16,
+      music_ducking_db: -12,
+    },
+    closing: {
+      component: 'end_card' as const,
+      cta: {
+        text: template.closing.cta_role.replace(/_/g, ' '),
+        url: 'https://tabario.com',
+        show_qr: false,
+      },
+      show_logo: true,
+      start_frame: accFrame,
+      duration_frames: closingDuration,
+    },
+  };
+
+  const result = CompositionManifestSchema.safeParse(raw);
+  if (!result.success) {
+    throw new Error(`buildTemplateManifest produced invalid manifest: ${result.error.message}`);
   }
   return result.data as unknown as CompositionManifest;
 }
@@ -227,6 +397,10 @@ function loadRunDirManifest(runDir: string): RunDirManifestData {
   };
 }
 
+function isImageFile(filename: string): boolean {
+  return /\.(png|jpg|jpeg|webp|gif|avif)$/i.test(filename);
+}
+
 async function normalizeClips(
   clips: ClipMeta[],
   runDir: string,
@@ -236,11 +410,25 @@ async function normalizeClips(
   await Promise.all(
     clips.map(async (clip) => {
       const inputPath = join(runDir, clip.filename);
+      if (isImageFile(clip.filename)) {
+        normalized[clip.filename] = inputPath;
+        return;
+      }
       const normalizedPath = await ensureH264(inputPath, targetFps);
       normalized[clip.filename] = normalizedPath;
     }),
   );
   return normalized;
+}
+
+function manifestClipFilename(
+  originalFilename: string,
+  normalizedPaths: Record<string, string>,
+): string {
+  const normalized = normalizedPaths[originalFilename];
+  if (!normalized) return originalFilename;
+  const normalizedBasename = normalized.split('/').pop() ?? normalized.split('\\').pop() ?? normalized;
+  return normalizedBasename;
 }
 
 function buildManifestWithNormalizedClips(
@@ -252,7 +440,7 @@ function buildManifestWithNormalizedClips(
     scenes: manifest.scenes.map((scene) => ({
       ...scene,
       clip_filename: scene.clip_filename
-        ? normalizedPaths[scene.clip_filename] ?? scene.clip_filename
+        ? manifestClipFilename(scene.clip_filename, normalizedPaths)
         : undefined,
     })),
   };
@@ -260,12 +448,16 @@ function buildManifestWithNormalizedClips(
 
 export interface RunTestRenderOptions {
   runId: string;
+  clientId?: string;
   basePath?: string;
   platform?: string;
+  aspectRatio?: AspectRatio;
   manifestMode: ManifestMode;
   manifest?: CompositionManifest;
   brandProfile?: BrandProfile;
   targetFps?: number;
+  /** Use a UseCaseTemplate to build the stub manifest instead of the flat layout. */
+  templateType?: string;
 }
 
 export async function runTestRenderFromRun(
@@ -273,12 +465,15 @@ export async function runTestRenderFromRun(
 ): Promise<{ outputPath: string; durationMs: number }> {
   const {
     runId,
+    clientId,
     basePath,
     platform = 'tiktok',
+    aspectRatio,
     manifestMode,
     manifest: providedManifest,
     brandProfile: providedBrandProfile,
     targetFps = 24,
+    templateType,
   } = options;
 
   const runDir = join(basePath ?? DATA_SHARED_BASE, runId);
@@ -302,28 +497,49 @@ export async function runTestRenderFromRun(
   if (providedManifest) {
     manifest = providedManifest;
   } else if (manifestMode === 'llm') {
-    const { brief, client_id } = loadRunDirManifest(runDir);
-    effectiveBrandProfile = providedBrandProfile ?? await hydrateBrandProfile(client_id, '');
+    const runDirData = loadRunDirManifest(runDir);
+    const effectiveClientId = clientId ?? runDirData.client_id;
+    if (providedBrandProfile) {
+      effectiveBrandProfile = providedBrandProfile;
+    } else {
+      try {
+        effectiveBrandProfile = await hydrateBrandProfile(effectiveClientId, '');
+      } catch (err) {
+        if (err instanceof BrandProfileNotFoundError) {
+          console.warn(`[testRender] No brand profile found for client_id=${effectiveClientId}, falling back to TEST_BRAND_PROFILE`);
+          effectiveBrandProfile = TEST_BRAND_PROFILE;
+        } else {
+          throw err;
+        }
+      }
+    }
     const clipFilenames = clips.map((c) => c.filename);
     const voiceoverFilename = 'voiceover.mp3';
     manifest = await generateManifest({
       run_id: runId,
-      client_id,
+      client_id: effectiveClientId,
       platform,
-      brief,
+      brief: runDirData.brief,
       brand_profile: effectiveBrandProfile,
       clip_filenames: clipFilenames,
       voiceover_filename: voiceoverFilename,
     });
+  } else if (templateType) {
+    manifest = buildTemplateManifest(templateType, clips, platform, runId, providedBrandProfile?.client_id ?? clientId ?? 'test', targetFps, aspectRatio);
   } else {
-    manifest = buildStubManifest(clips, platform, runId, providedBrandProfile?.client_id ?? 'test', targetFps);
+    manifest = buildStubManifest(clips, platform, runId, providedBrandProfile?.client_id ?? 'test', targetFps, aspectRatio);
   }
 
-  // Patch manifest to use normalized clip filenames
+  // Patch manifest to use normalized clip filenames (relative paths only for staticFile)
   manifest = buildManifestWithNormalizedClips(manifest, normalizedPaths);
 
-  // Override FPS to target (LLM may have set something different)
-  manifest = { ...manifest, fps: targetFps };
+  // Override FPS and dimensions to target values (LLM may have set different values)
+  let width = manifest.width;
+  let height = manifest.height;
+  if (aspectRatio === '9:16') { width = 1080; height = 1920; }
+  else if (aspectRatio === '16:9') { width = 1920; height = 1080; }
+  else if (aspectRatio === '1:1') { width = 1080; height = 1080; }
+  manifest = { ...manifest, fps: targetFps, width, height };
 
   const outputPath = join(runDir, 'test_render.mp4');
   const start = Date.now();
