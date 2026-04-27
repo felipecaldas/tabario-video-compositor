@@ -168,9 +168,9 @@ export async function runComposeJob(
     // ── Step 4.5: Transcode clips to H.264 for browser compatibility ────────
     // ComfyUI WAN models produce H.265/HEVC which Chrome (Remotion) cannot play.
     onUpdate({ status: 'transcoding' });
-    console.log(`[runner] Ensuring clips are H.264-compatible for run_id=${payload.run_id}`);
+    console.log(`[runner] Ensuring clips are H.264-compatible for run_id=${payload.run_id} (target FPS: ${manifest.fps})`);
     const h264ClipPaths: string[] = await Promise.all(
-      payload.clip_paths.map((p) => ensureH264(p)),
+      payload.clip_paths.map((p) => ensureH264(p, manifest.fps)),
     );
 
     // Build filename → h264 filename map so scenes referencing the same

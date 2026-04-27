@@ -3,6 +3,7 @@ FROM node:20-slim
 # Install Chromium (required for Remotion headless render) + FFmpeg
 RUN apt-get update && apt-get install -y \
     chromium \
+    curl \
     ffmpeg \
     fonts-liberation \
     libasound2 \
