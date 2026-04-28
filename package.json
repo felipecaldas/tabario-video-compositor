@@ -7,7 +7,7 @@
     "build": "tsc",
     "dev": "nodemon --exec ts-node src/api/server.ts",
     "start": "node dist/api/server.js",
-    "test": "jest --testPathPattern=tests/unit",
+    "test": "jest --testPathPattern=tests/unit --coverage",
     "test:coverage": "jest --testPathPattern=tests/unit --coverage",
     "test:integration": "jest --testPathPattern=tests/integration --runInBand",
     "lint": "eslint 'src/**/*.ts' 'remotion/**/*.tsx'",
@@ -64,6 +64,7 @@
       "<rootDir>/tests/helpers/"
     ],
     "testTimeout": 30000,
+    "coverageDirectory": "coverage",
     "collectCoverageFrom": [
       "src/**/*.ts",
       "remotion/**/*.ts",
