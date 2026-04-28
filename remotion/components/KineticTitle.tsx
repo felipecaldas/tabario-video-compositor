@@ -1,5 +1,5 @@
 import React from 'react';
-import { useCurrentFrame, useVideoConfig, spring } from 'remotion';
+import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
 import { useBrand } from '../BrandContext';
 
 interface KineticTitleProps {
@@ -10,10 +10,11 @@ interface KineticTitleProps {
 export const KineticTitle: React.FC<KineticTitleProps> = ({ text, color }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { colors, headingFamily, titleCase } = useBrand();
+  const { headingFamily, titleCase } = useBrand();
 
-  const scale = spring({ frame, fps, config: { damping: 12, stiffness: 100 } });
-  const opacity = spring({ frame, fps, config: { damping: 20, stiffness: 80 } });
+  // Scale pops in with spring; opacity reaches full visibility by frame 3
+  const scale = spring({ frame, fps, config: { damping: 12, stiffness: 120 } });
+  const opacity = interpolate(frame, [0, 3], [0, 1], { extrapolateRight: 'clamp' });
 
   const displayText =
     titleCase === 'upper'
@@ -35,10 +36,12 @@ export const KineticTitle: React.FC<KineticTitleProps> = ({ text, color }) => {
         fontFamily: headingFamily,
         fontSize: 72,
         fontWeight: 800,
-        color: color ?? colors.primary ?? '#ffffff',
+        // Default to white so text is legible over any clip background.
+        // Callers (non-ad templates) can pass an explicit color override.
+        color: color ?? '#ffffff',
         textAlign: 'center',
         padding: '0 48px',
-        textShadow: '0 4px 24px rgba(0,0,0,0.6)',
+        textShadow: '0 2px 20px rgba(0,0,0,0.85)',
       }}
     >
       {displayText}

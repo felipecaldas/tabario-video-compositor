@@ -11,7 +11,7 @@ const ComponentTypeSchema = z.enum([
   'kinetic_title', 'stagger_title', 'lower_third', 'caption_bar',
   'split_horizontal', 'split_vertical', 'picture_in_picture',
   'soft_cut', 'color_wipe', 'scale_push', 'logo_reveal', 'end_card',
-  'typographic_background', 'brand_accent_line', 'motion_badge',
+  'typographic_background', 'brand_accent_line', 'motion_badge', 'metric_callout',
 ]);
 
 export const TextOverlaySchema = z.object({

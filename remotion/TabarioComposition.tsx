@@ -34,6 +34,7 @@ import { KenBurns } from './components/KenBurns';
 import { TalkingHeadScene } from './components/TalkingHeadScene';
 import { BrandAccentLine } from './components/BrandAccentLine';
 import { MotionBadge } from './components/MotionBadge';
+import { MetricCallout } from './components/MetricCallout';
 import { CinematicBars } from './components/CinematicBars';
 import { SplitHorizontal } from './components/SplitHorizontal';
 import { SplitVertical } from './components/SplitVertical';
@@ -109,6 +110,14 @@ function renderOverlayBody(
       return <BrandAccentLine position={p.position as 'bottom' | 'top' | 'middle' | undefined} />;
     case 'motion_badge':
       return <MotionBadge text={String(p.text ?? '')} />;
+    case 'metric_callout':
+      return (
+        <MetricCallout
+          metric={String(p.metric ?? p.text ?? '')}
+          label={String(p.label ?? '')}
+          color={p.color as string | undefined}
+        />
+      );
     case 'soft_cut':
       return <SoftCut fromSrc={fromSrc} toSrc={toSrc} />;
     case 'color_wipe':

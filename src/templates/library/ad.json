@@ -1,38 +1,44 @@
 {
   "id": "ad",
   "name": "Ad",
-  "description": "Performance advertising structure: hook attention, present the problem, reveal the product, show benefits, drive a CTA.",
+  "description": "High-converting performance ad: hook stops the scroll, problem agitates pain, solution reveals the product, proof builds trust, outcome shows the transformation, CTA drives action.",
   "scene_blueprint": [
     {
       "role": "hook",
-      "duration_target_s": [1, 2.5],
+      "duration_target_s": [0.5, 1.5],
       "required_layout": "flexible",
       "required_overlay": { "component": "kinetic_title", "copy_role": "hook_headline" },
       "cardinality": "one"
     },
     {
       "role": "problem",
-      "duration_target_s": [2, 4],
+      "duration_target_s": [1.5, 3],
       "required_layout": "b_roll",
       "cardinality": "one"
     },
     {
-      "role": "product",
-      "duration_target_s": [3, 5],
+      "role": "solution",
+      "duration_target_s": [2.5, 4.5],
       "required_layout": "product_shot",
       "required_overlay": { "component": "stagger_title", "copy_role": "product_name" },
       "cardinality": "one"
     },
     {
-      "role": "feature",
-      "duration_target_s": [2, 4],
+      "role": "proof",
+      "duration_target_s": [1.5, 2.5],
       "required_layout": "flexible",
-      "required_overlay": { "component": "motion_badge", "copy_role": "benefit_copy" },
+      "required_overlay": { "component": "motion_badge", "copy_role": "proof_metric" },
       "cardinality": "one_to_many"
     },
     {
-      "role": "cta",
+      "role": "outcome",
       "duration_target_s": [2, 3.5],
+      "required_layout": "flexible",
+      "cardinality": "one"
+    },
+    {
+      "role": "cta",
+      "duration_target_s": [2, 3],
       "required_layout": "product_shot",
       "required_overlay": { "component": "kinetic_title", "copy_role": "cta_text" },
       "cardinality": "one"
@@ -47,5 +53,21 @@
     "component": "end_card",
     "duration_s": 3,
     "cta_role": "purchase_or_learn_more"
+  },
+  "default_transitions": [
+    { "from_role": "hook",     "to_role": "problem",  "type": "scale_push" },
+    { "from_role": "problem",  "to_role": "solution", "type": "color_wipe" },
+    { "from_role": "solution", "to_role": "proof",    "type": "slide_push", "direction": "left" },
+    { "from_role": "proof",    "to_role": "proof",    "type": "slide_push", "direction": "left" },
+    { "from_role": "proof",    "to_role": "outcome",  "type": "soft_cut" },
+    { "from_role": "outcome",  "to_role": "cta",      "type": "zoom_blur" }
+  ],
+  "default_grade_per_role": {
+    "hook":     "neutral",
+    "problem":  "high_contrast",
+    "solution": "vibrant_warm",
+    "proof":    "neutral",
+    "outcome":  "vibrant_warm",
+    "cta":      "vibrant_warm"
   }
 }

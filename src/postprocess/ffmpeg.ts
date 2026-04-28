@@ -113,7 +113,18 @@ export async function ensureH264(inputPath: string, targetFps?: number): Promise
   console.log(`[ffmpeg] Transcoding clip from ${codec ?? 'unknown'} → H.264${needsFpsConversion ? ` (normalizing ${fps}fps → ${targetFps}fps)` : ''}: ${inputPath}`);
   const outputPath = inputPath.replace(/(\.[^.]+)$/, '_h264$1');
 
-  const args = ['-i', inputPath, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p'];
+  const args = [
+    '-i', inputPath,
+    '-c:v', 'libx264',
+    '-preset', 'fast',
+    '-crf', '23',
+    '-pix_fmt', 'yuv420p',
+    // Force an I-frame at t=0 and every 30 frames so Remotion can seek
+    // to the first frame without a decoder stall (the stutter/freeze bug).
+    '-force_key_frames', 'expr:gte(t,0)',
+    '-g', '30',
+    '-keyint_min', '1',
+  ];
   if (needsFpsConversion) {
     args.push('-r', String(targetFps));
   }

@@ -10,7 +10,7 @@ interface StaggerTitleProps {
 export const StaggerTitle: React.FC<StaggerTitleProps> = ({ text, color }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { colors, headingFamily } = useBrand();
+  const { headingFamily } = useBrand();
 
   const words = text.split(' ');
 
@@ -28,12 +28,13 @@ export const StaggerTitle: React.FC<StaggerTitleProps> = ({ text, color }) => {
         fontFamily: headingFamily,
         fontSize: 64,
         fontWeight: 800,
-        color: color ?? colors.primary ?? '#ffffff',
-        textShadow: '0 4px 24px rgba(0,0,0,0.6)',
+        // Default to white for legibility on any clip background.
+        color: color ?? '#ffffff',
+        textShadow: '0 2px 20px rgba(0,0,0,0.85)',
       }}
     >
       {words.map((word, i) => {
-        const wordFrame = Math.max(0, frame - i * 4);
+        const wordFrame = Math.max(0, frame - i * 2);
         const opacity = spring({ frame: wordFrame, fps, config: { damping: 20, stiffness: 120 } });
         const translateY = (1 - opacity) * 30;
         return (

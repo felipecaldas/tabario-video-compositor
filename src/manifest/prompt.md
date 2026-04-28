@@ -159,3 +159,79 @@ Apply `brief.visual_direction.color_feel` to inform scene grades:
 ### Rule 7 — Branding elements
 
 If `brief.visual_direction.branding_elements` is present, add a `lower_third` or `logo_reveal` overlay on the first scene only. Do not repeat branding overlays throughout the video.
+
+---
+
+## Ad template rules (applies when `use_case == "ad"`)
+
+When the manifest's `use_case` is `"ad"`, the following rules **override or supplement** the general editorial rules above. All 8 rules are mandatory.
+
+### Ad Rule 1 — Six-act scene structure
+
+The scene sequence must be exactly: **hook → problem → solution → proof (1–3 scenes) → outcome → cta**. Never collapse these into generic sections or reuse old roles like `feature` or `product`.
+
+| Role | Purpose |
+|------|---------|
+| `hook` | Stop the scroll — bold claim, startling visual, or pattern interrupt |
+| `problem` | Agitate the pain — viewer sees their frustration |
+| `solution` | Brand pivot — product/service revealed as the answer |
+| `proof` | Social proof — metrics, testimonials, results, star ratings |
+| `outcome` | Life after — the transformation; viewer imagines themselves post-purchase |
+| `cta` | Direct command — one action, urgent language |
+
+### Ad Rule 2 — Transition sequence (mandatory escalation)
+
+Transitions must escalate in energy toward the CTA. Use this exact sequence:
+
+| Boundary | Transition |
+|----------|-----------|
+| hook → problem | `scale_push` |
+| problem → solution | `color_wipe` with `accent_color` = brand accent (this is the ONE allowed per video) |
+| solution → proof (first) | `slide_push` direction `"left"` |
+| proof → proof | `slide_push` direction `"left"` |
+| proof → outcome | `soft_cut` |
+| outcome → cta | `zoom_blur` |
+
+### Ad Rule 3 — Duration caps (max per scene role)
+
+No ad scene may exceed its cap. Faster pacing = higher retention.
+
+| Role | Max duration |
+|------|-------------|
+| hook | 1.5s |
+| problem | 3s |
+| solution | 5s |
+| proof (each) | 2.5s |
+| outcome | 4s |
+| cta | 3s |
+
+Limit proof to at most 3 scenes. Total video must fit within 30s.
+
+### Ad Rule 4 — Grade per role
+
+Apply these grades regardless of `visual_direction.color_feel`:
+
+| Role | Grade |
+|------|-------|
+| hook | `neutral` |
+| problem | `high_contrast` |
+| solution | `vibrant_warm` |
+| proof | `neutral` |
+| outcome | `vibrant_warm` |
+| cta | `vibrant_warm` |
+
+### Ad Rule 5 — Text colour (CRITICAL)
+
+All overlay text props in an ad manifest **must** include `"color": "#FFFFFF"`. Never use `brand_colors.primary` as text colour in an ad — dark brand colours disappear on dark footage.
+
+### Ad Rule 6 — Proof overlays
+
+Use `metric_callout` (not `motion_badge`) for proof scenes. Set `props.metric` to the number or result (e.g. `"3× FASTER"`, `"★★★★★"`, `"10,000+ customers"`), and `props.label` to a short benefit phrase (e.g. `"than the competition"`, `"5-star reviews"`).
+
+### Ad Rule 7 — Outcome scene
+
+The outcome scene must have **no overlay**. Let the warm visual tell the story. This is the only breather in the ad — one clean, aspirational shot.
+
+### Ad Rule 8 — CTA text
+
+The `cta` overlay text must be an imperative action: `"Shop Now"`, `"Try Free Today"`, `"Book a Call"`, `"Download Now"`. Never use passive language like `"Learn More"` alone.

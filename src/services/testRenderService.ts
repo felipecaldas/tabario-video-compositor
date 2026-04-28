@@ -2,7 +2,7 @@ import { readdirSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import {
   CompositionManifest, BrandProfile, TransitionType, Brief,
-  LayoutType, TalkingHeadLayout, TextOverlayComponent, ComponentType,
+  LayoutType, TalkingHeadLayout,
 } from '../types';
 import { CompositionManifestSchema } from '../manifest/schema';
 import { renderComposition } from '../renderer/renderWorker';
@@ -10,7 +10,7 @@ import { ensureH264 } from '../postprocess/ffmpeg';
 import { hydrateBrandProfile, BrandProfileNotFoundError } from '../brand/hydrator';
 import { generateManifest } from '../manifest/generator';
 import { TemplateRegistry } from '../templates/registry';
-import { SceneSlot } from '../templates/schema';
+import { SceneSlot, SceneRole, DefaultTransition } from '../templates/schema';
 
 const DATA_SHARED_BASE = process.env.DATA_SHARED_BASE ?? '/data/shared';
 
@@ -197,6 +197,8 @@ export function buildTemplateManifest(
 
   const scenes: CompositionManifest['scenes'] = [];
   const overlays: CompositionManifest['overlays'] = [];
+  // Track the role for each scene index so transitions can be looked up.
+  const sceneRoles: SceneRole[] = [];
   let sceneIdx = 0;
   let clipCursor = 0;
   let accFrame = 0;
@@ -204,6 +206,7 @@ export function buildTemplateManifest(
   for (const { slot, count } of allocations) {
     const [minS, maxS] = slot.duration_target_s;
     const durationFrames = Math.round(((minS + maxS) / 2) * fps);
+    const grade = template.default_grade_per_role?.[slot.role];
 
     for (let i = 0; i < count; i++) {
       const clip = clips[clipCursor % clips.length];
@@ -217,38 +220,50 @@ export function buildTemplateManifest(
         duration_frames: durationFrames,
         layout: mapRequiredLayout(slot.required_layout),
         ...(talkingHeadLayout ? { talking_head_layout: talkingHeadLayout } : {}),
+        ...(grade ? { grade } : {}),
       };
 
-      if (slot.required_overlay) {
-        const comp = slot.required_overlay.component;
-        const copyText = `[${slot.required_overlay.copy_role}]`;
-        const isSceneOverlayComp = comp === 'kinetic_title' || comp === 'stagger_title' || comp === 'caption_bar';
-
-        if (isSceneOverlayComp) {
-          scene.scene_overlays = [{ component: comp as TextOverlayComponent, text: copyText }];
-        } else {
-          // lower_third, motion_badge — use manifest-level overlay
-          overlays.push({
-            component: comp as ComponentType,
-            scene_index: sceneIdx,
-            start_frame: accFrame + Math.round(fps * 0.5),
-            duration_frames: Math.round(durationFrames * 0.6),
-            props: comp === 'lower_third' ? { name: copyText } : { text: copyText },
-          });
-        }
-      }
+      // Overlays are omitted in stub/template mode — no real copy exists yet.
+      // The overlay animation components require actual text; placeholder strings
+      // like "[hook_headline]" render on screen and look broken.
 
       scenes.push(scene);
+      sceneRoles.push(slot.role);
       accFrame += durationFrames;
       sceneIdx++;
     }
   }
 
-  const transitions = scenes.slice(0, -1).map((_, i) => ({
-    between: [i, i + 1] as [number, number],
-    type: 'soft_cut' as TransitionType,
-    duration_frames: 15,
-  }));
+  // Build transitions: use default_transitions from template when available,
+  // falling back to soft_cut for any boundary not explicitly prescribed.
+  const defaultTransitions: DefaultTransition[] = template.default_transitions ?? [];
+
+  function resolveTransition(fromRole: SceneRole, toRole: SceneRole): {
+    type: TransitionType; direction?: string; accent_color?: string;
+  } {
+    const match = defaultTransitions.find(
+      (t) => t.from_role === fromRole && t.to_role === toRole,
+    );
+    if (match) {
+      return {
+        type: match.type as TransitionType,
+        ...(match.direction ? { direction: match.direction } : {}),
+        ...(match.accent_color ? { accent_color: match.accent_color } : {}),
+      };
+    }
+    return { type: 'soft_cut' as TransitionType };
+  }
+
+  const transitions = scenes.slice(0, -1).map((_, i) => {
+    const { type, direction, accent_color } = resolveTransition(sceneRoles[i], sceneRoles[i + 1]);
+    return {
+      between: [i, i + 1] as [number, number],
+      type,
+      duration_frames: 15,
+      ...(direction ? { direction: direction as 'left' | 'right' | 'up' | 'down' } : {}),
+      ...(accent_color ? { accent_color } : {}),
+    };
+  });
 
   const closingDuration = fps * 3;
 

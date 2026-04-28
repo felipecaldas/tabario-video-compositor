@@ -13,9 +13,9 @@ export const MotionBadge: React.FC<MotionBadgeProps> = ({ text }) => {
   const { fps, width, height } = useVideoConfig();
   const { colors, bodyFamily } = useBrand();
 
-  const progress = spring({ frame, fps, config: { damping: 14, stiffness: 120 } });
+  const progress = spring({ frame, fps, config: { damping: 10, stiffness: 150 } });
 
-  const fontSize = scaledSize(0.030, width, height);
+  const fontSize = scaledSize(0.0375, width, height);
   const paddingH = scaledSize(0.02, width, height);
   const paddingV = scaledSize(0.012, width, height);
   const bottomMargin = scaledSize(0.12, width, height);
