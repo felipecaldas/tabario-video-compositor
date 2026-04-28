@@ -1,6 +1,8 @@
 import React from 'react';
 import { useCurrentFrame, useVideoConfig, spring } from 'remotion';
 import { useBrand } from '../BrandContext';
+import { useStyle } from '../StyleContext';
+import { vSize } from '../utils/typography';
 
 interface StaggerTitleProps {
   text: string;
@@ -9,8 +11,9 @@ interface StaggerTitleProps {
 
 export const StaggerTitle: React.FC<StaggerTitleProps> = ({ text, color }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const { headingFamily } = useBrand();
+  const style = useStyle();
 
   const words = text.split(' ');
 
@@ -26,7 +29,7 @@ export const StaggerTitle: React.FC<StaggerTitleProps> = ({ text, color }) => {
         gap: 12,
         padding: '0 48px',
         fontFamily: headingFamily,
-        fontSize: 64,
+        fontSize: vSize(style.typography.heading_scale, { width, height }),
         fontWeight: 800,
         // Default to white for legibility on any clip background.
         color: color ?? '#ffffff',

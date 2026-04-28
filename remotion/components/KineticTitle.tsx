@@ -1,6 +1,8 @@
 import React from 'react';
 import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
 import { useBrand } from '../BrandContext';
+import { useStyle } from '../StyleContext';
+import { vSize } from '../utils/typography';
 
 interface KineticTitleProps {
   text: string;
@@ -9,8 +11,9 @@ interface KineticTitleProps {
 
 export const KineticTitle: React.FC<KineticTitleProps> = ({ text, color }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const { headingFamily, titleCase } = useBrand();
+  const style = useStyle();
 
   // Scale pops in with spring; opacity reaches full visibility by frame 3
   const scale = spring({ frame, fps, config: { damping: 12, stiffness: 120 } });
@@ -34,7 +37,7 @@ export const KineticTitle: React.FC<KineticTitleProps> = ({ text, color }) => {
         opacity,
         transform: `scale(${scale})`,
         fontFamily: headingFamily,
-        fontSize: 72,
+        fontSize: vSize(style.typography.heading_scale, { width, height }),
         fontWeight: 800,
         // Default to white so text is legible over any clip background.
         // Callers (non-ad templates) can pass an explicit color override.

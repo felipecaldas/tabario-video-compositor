@@ -1,6 +1,8 @@
 import React from 'react';
 import { Img, useCurrentFrame, useVideoConfig, spring } from 'remotion';
 import { useBrand } from '../BrandContext';
+import { useStyle } from '../StyleContext';
+import { vSize } from '../utils/typography';
 
 interface EndCardProps {
   ctaText: string;
@@ -16,8 +18,9 @@ export const EndCard: React.FC<EndCardProps> = ({
   showLogo = true,
 }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const { colors, logoPrimaryUrl, bodyFamily, headingFamily } = useBrand();
+  const style = useStyle();
 
   const opacity = spring({ frame, fps, config: { damping: 20, stiffness: 60 } });
   const translateY = (1 - opacity) * 40;
@@ -47,11 +50,11 @@ export const EndCard: React.FC<EndCardProps> = ({
       <div
         style={{
           fontFamily: headingFamily,
-          fontSize: 48,
-          fontWeight: 800,
+          fontSize: vSize(style.typography.heading_scale, { width, height }),
+          fontWeight: style.typography.weight_heading,
           color: colors.primary ?? '#ffffff',
           textAlign: 'center',
-          lineHeight: 1.3,
+          lineHeight: style.typography.line_height,
         }}
       >
         {ctaText}
@@ -60,7 +63,7 @@ export const EndCard: React.FC<EndCardProps> = ({
         <div
           style={{
             fontFamily: bodyFamily,
-            fontSize: 28,
+            fontSize: vSize(style.typography.body_scale, { width, height }),
             color: colors.accent ?? '#3B82F6',
             textAlign: 'center',
           }}

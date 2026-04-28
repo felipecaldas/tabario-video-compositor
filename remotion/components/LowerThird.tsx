@@ -1,6 +1,8 @@
 import React from 'react';
 import { useCurrentFrame, useVideoConfig, spring } from 'remotion';
 import { useBrand } from '../BrandContext';
+import { useStyle } from '../StyleContext';
+import { vSize, safeZone } from '../utils/typography';
 
 interface LowerThirdProps {
   name: string;
@@ -9,17 +11,23 @@ interface LowerThirdProps {
 
 export const LowerThird: React.FC<LowerThirdProps> = ({ name, subtitle }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const { colors, bodyFamily } = useBrand();
+  const style = useStyle();
 
   const slideIn = spring({ frame, fps, config: { damping: 18, stiffness: 100 } });
   const translateX = (1 - slideIn) * -400;
+
+  const zone = safeZone('tiktok');
+  const bottomOffset = height * zone.bottom;
+  const nameSize = vSize(style.typography.body_scale, { width, height });
+  const subtitleSize = nameSize * 0.65;
 
   return (
     <div
       style={{
         position: 'absolute',
-        bottom: 80,
+        bottom: bottomOffset,
         left: 0,
         transform: `translateX(${translateX}px)`,
         background: colors.accent ?? '#3B82F6',
@@ -29,9 +37,9 @@ export const LowerThird: React.FC<LowerThirdProps> = ({ name, subtitle }) => {
         maxWidth: '75%',
       }}
     >
-      <div style={{ fontSize: 32, fontWeight: 700, color: '#ffffff', lineHeight: 1.2 }}>{name}</div>
+      <div style={{ fontSize: nameSize, fontWeight: style.typography.weight_heading, color: '#ffffff', lineHeight: 1.2 }}>{name}</div>
       {subtitle && (
-        <div style={{ fontSize: 20, fontWeight: 400, color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>
+        <div style={{ fontSize: subtitleSize, fontWeight: style.typography.weight_body, color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>
           {subtitle}
         </div>
       )}
