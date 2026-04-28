@@ -1,5 +1,3 @@
-import { createReadStream } from 'fs';
-import OpenAI from 'openai';
 import { CaptionTrack, CaptionWord, PauseMarker } from '../types';
 
 /** Gaps between words larger than this threshold are recorded as pause markers. */
@@ -8,41 +6,52 @@ const PAUSE_THRESHOLD_S = 0.3;
 export interface TranscribeOptions {
   /** Frame rate used to convert timestamps to frame numbers. Defaults to 30. */
   fps?: number;
+  /** Language hint passed to Whisper (e.g. 'en', 'pt'). Omit for auto-detection. */
+  language?: string;
+  /** Whisper model size. Defaults to 'small'. */
+  modelSize?: string;
 }
 
-let _client: OpenAI | null = null;
-
-function getClient(): OpenAI {
-  if (!_client) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error('OPENAI_API_KEY must be set for ASR transcription');
-    _client = new OpenAI({ apiKey });
-  }
-  return _client;
-}
-
-interface WhisperWord {
+interface RawWord {
   word: string;
   start: number;
   end: number;
 }
 
+interface WordTranscriptionResponse {
+  words: RawWord[];
+  detected_language?: string;
+  confidence?: number;
+}
+
 /**
- * Transcribe an audio file using Whisper and return a frame-accurate CaptionTrack.
- * Requires OPENAI_API_KEY in the environment.
+ * Transcribe an audio file using the edit-videos faster-whisper service and
+ * return a frame-accurate CaptionTrack.
+ *
+ * The audio file must be accessible at a /data/shared path inside the
+ * edit-videos container. Calls POST /transcribe/words on VIDEO_MERGER_URL.
  */
 export async function transcribe(audioPath: string, opts: TranscribeOptions = {}): Promise<CaptionTrack> {
   const fps = opts.fps ?? 30;
+  const baseUrl = (process.env.VIDEO_MERGER_URL ?? 'http://video-merger:8000').replace(/\/$/, '');
 
-  const response = await getClient().audio.transcriptions.create({
-    file: createReadStream(audioPath),
-    model: 'whisper-1',
-    response_format: 'verbose_json',
-    timestamp_granularities: ['word'],
+  const body: Record<string, string> = { mp3_path: audioPath };
+  if (opts.language) body.language = opts.language;
+  if (opts.modelSize) body.model_size = opts.modelSize;
+
+  const res = await fetch(`${baseUrl}/transcribe/words`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   });
 
-  // The SDK types verbose_json as Transcription; cast to access word timestamps.
-  const rawWords: WhisperWord[] = (response as unknown as { words?: WhisperWord[] }).words ?? [];
+  if (!res.ok) {
+    const detail = await res.text().catch(() => res.statusText);
+    throw new Error(`[transcribe] edit-videos /transcribe/words returned ${res.status}: ${detail}`);
+  }
+
+  const data: WordTranscriptionResponse = await res.json() as WordTranscriptionResponse;
+  const rawWords: RawWord[] = data.words ?? [];
 
   const words: CaptionWord[] = rawWords.map((w) => ({
     word: w.word.trim(),

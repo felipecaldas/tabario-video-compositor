@@ -14,6 +14,7 @@ services:
     environment:
       - PORT=9312
       - DATA_SHARED_BASE=/data/shared
+      - VIDEO_MERGER_URL=${VIDEO_MERGER_URL:-http://video-merger:8000}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9312/health"]
