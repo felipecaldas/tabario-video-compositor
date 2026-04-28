@@ -103,6 +103,8 @@ export async function ensureH264(inputPath: string, targetFps?: number): Promise
   const fps = await probeFps(inputPath);
   const needsFpsConversion = targetFps !== undefined && fps !== null && fps !== targetFps;
 
+  console.log(`[ffmpeg] ensureH264: ${inputPath} → codec=${codec ?? 'unknown'}, fps=${fps ?? 'unknown'}, targetFps=${targetFps ?? 'none'}, needsConversion=${needsFpsConversion}`);
+
   if (codec === 'h264' && !needsFpsConversion) {
     console.log(`[ffmpeg] Clip already H.264 at ${fps}fps, skipping transcode: ${inputPath}`);
     return inputPath;

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__ceea077e-12d0-4577-a8cb-4297d930946d__list_issue_labels",
+      "mcp__ceea077e-12d0-4577-a8cb-4297d930946d__create_issue_label",
+      "mcp__ceea077e-12d0-4577-a8cb-4297d930946d__save_issue",
+      "mcp__code-review-graph__get_minimal_context_tool"
+    ]
+  }
+}
