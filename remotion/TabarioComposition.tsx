@@ -5,7 +5,6 @@ import {
   Img,
   Sequence,
   staticFile,
-  Video,
 } from 'remotion';
 import {
   BrandProfile,
@@ -41,6 +40,7 @@ import { SplitHorizontal } from './components/SplitHorizontal';
 import { SplitVertical } from './components/SplitVertical';
 import { PictureInPicture } from './components/PictureInPicture';
 import { TypographicBackground } from './components/TypographicBackground';
+import { FrameAccurateVideo } from './components/FrameAccurateVideo';
 
 export function gradeToFilter(grade?: GradeType): string | undefined {
   switch (grade) {
@@ -203,7 +203,7 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
       return true;
     });
 
-    // Build clip element — Img for static images, Video for clips
+    // Build clip element — Img for static images, OffthreadVideo for clips.
     const clipElement = sceneSrc ? (
       isImage ? (
         <Img
@@ -216,7 +216,7 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
           }}
         />
       ) : (
-        <Video
+        <FrameAccurateVideo
           src={sceneSrc}
           style={{
             width: '100%',

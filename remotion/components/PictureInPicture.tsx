@@ -1,5 +1,5 @@
 import React from 'react';
-import { Video } from 'remotion';
+import { FrameAccurateVideo } from './FrameAccurateVideo';
 
 type PipPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -24,7 +24,7 @@ export const PictureInPicture: React.FC<PictureInPictureProps> = ({
   overlayScale = 0.3,
 }) => (
   <div style={{ position: 'absolute', inset: 0 }}>
-    <Video src={mainSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    <FrameAccurateVideo src={mainSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
     <div
       style={{
         position: 'absolute',
@@ -36,7 +36,7 @@ export const PictureInPicture: React.FC<PictureInPictureProps> = ({
         ...POSITION_STYLES[position],
       }}
     >
-      <Video src={overlaySrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <FrameAccurateVideo src={overlaySrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
     </div>
   </div>
 );

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Video, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+import { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+import { FrameAccurateVideo } from './FrameAccurateVideo';
 
 interface SlideTransitionProps {
   fromSrc: string;
@@ -38,10 +39,10 @@ export const SlideTransition: React.FC<SlideTransitionProps> = ({
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0, transform: fromTransform }}>
-        <Video src={fromSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <FrameAccurateVideo src={fromSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
       <div style={{ position: 'absolute', inset: 0, transform: toTransform }}>
-        <Video src={toSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <FrameAccurateVideo src={toSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     </div>
   );

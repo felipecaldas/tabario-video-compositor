@@ -63,9 +63,9 @@ describe('fitText', () => {
   });
 
   it('scales proportionally to available width', () => {
-    const text = 'Shop Now';
-    const wide = fitText(text, 1000, 0.067, dims);
-    const narrow = fitText(text, 400, 0.067, dims);
+    const longText = 'This is a very long headline that would definitely overflow';
+    const wide = fitText(longText, 1000, 0.067, dims);
+    const narrow = fitText(longText, 400, 0.067, dims);
     expect(wide).toBeGreaterThan(narrow);
   });
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Video } from 'remotion';
+import { FrameAccurateVideo } from './FrameAccurateVideo';
 
 interface SplitVerticalProps {
   topSrc: string;
@@ -18,10 +18,10 @@ export const SplitVertical: React.FC<SplitVerticalProps> = ({
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
       <div style={{ height: topPct, overflow: 'hidden' }}>
-        <Video src={topSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <FrameAccurateVideo src={topSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
       <div style={{ height: bottomPct, overflow: 'hidden' }}>
-        <Video src={bottomSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <FrameAccurateVideo src={bottomSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Video, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+import { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+import { FrameAccurateVideo } from './FrameAccurateVideo';
 
 interface ZoomBlurProps {
   fromSrc: string;
@@ -35,7 +36,7 @@ export const ZoomBlur: React.FC<ZoomBlurProps> = ({ fromSrc, toSrc }) => {
           opacity: fromOpacity,
         }}
       >
-        <Video src={fromSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <FrameAccurateVideo src={fromSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
       <div
         style={{
@@ -46,7 +47,7 @@ export const ZoomBlur: React.FC<ZoomBlurProps> = ({ fromSrc, toSrc }) => {
           opacity: toOpacity,
         }}
       >
-        <Video src={toSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <FrameAccurateVideo src={toSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     </div>
   );

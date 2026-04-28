@@ -61,6 +61,18 @@ describe('buildFfmpegArgs', () => {
     const args = buildFfmpegArgs({ inputPath: '/in.mp4', outputPath: '/out.mp4' });
     expect(args).toContain('-y');
   });
+
+  it('preserves the selected target FPS as CFR when provided', () => {
+    const args = buildFfmpegArgs({
+      inputPath: '/in.mp4',
+      outputPath: '/out.mp4',
+      targetFps: 32,
+    });
+    expect(args).toContain('-fps_mode');
+    expect(args[args.indexOf('-fps_mode') + 1]).toBe('cfr');
+    expect(args).toContain('-r');
+    expect(args[args.indexOf('-r') + 1]).toBe('32');
+  });
 });
 
 describe('applyPostProcessing', () => {

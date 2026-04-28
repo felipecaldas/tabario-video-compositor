@@ -6,7 +6,7 @@ import {
 } from '../types';
 import { CompositionManifestSchema } from '../manifest/schema';
 import { renderComposition } from '../renderer/renderWorker';
-import { ensureH264 } from '../postprocess/ffmpeg';
+import { ensureH264, probeFps } from '../postprocess/ffmpeg';
 import { hydrateBrandProfile, BrandProfileNotFoundError } from '../brand/hydrator';
 import { generateManifest } from '../manifest/generator';
 import { TemplateRegistry } from '../templates/registry';
@@ -349,11 +349,31 @@ export interface TestRenderOptions {
   targetFps?: number;
 }
 
+async function resolveTestTargetFps(
+  clips: ClipMeta[],
+  runDir: string,
+  requested?: number,
+): Promise<number> {
+  if (requested !== undefined) return requested;
+
+  const envFps = Number(process.env.VIDEO_COMPOSITOR_TARGET_FPS);
+  if (Number.isFinite(envFps) && envFps > 0) return Math.round(envFps);
+
+  for (const clip of clips) {
+    if (isImageFile(clip.filename)) continue;
+    const probed = await probeFps(join(runDir, clip.filename));
+    if (probed) return probed;
+  }
+
+  return 30;
+}
+
 export async function runTestRender(options: TestRenderOptions): Promise<{ outputPath: string; durationMs: number }> {
-  const { runId, clientId, platform = 'tiktok', overrides, basePath, targetFps = 24 } = options;
+  const { runId, clientId, platform = 'tiktok', overrides, basePath } = options;
 
   const runDir = join(basePath ?? DATA_SHARED_BASE, runId);
   const { clips, hasVoiceover } = scanRunDirectory(runId, basePath);
+  const targetFps = await resolveTestTargetFps(clips, runDir, options.targetFps);
 
   if (clips.length === 0) {
     throw new Error(`No clip files found in run directory for run_id: ${runId}`);
@@ -487,12 +507,13 @@ export async function runTestRenderFromRun(
     manifestMode,
     manifest: providedManifest,
     brandProfile: providedBrandProfile,
-    targetFps = 24,
+    targetFps,
     templateType,
   } = options;
 
   const runDir = join(basePath ?? DATA_SHARED_BASE, runId);
   const { clips, hasVoiceover } = scanRunDirectory(runId, basePath);
+  const effectiveTargetFps = await resolveTestTargetFps(clips, runDir, targetFps);
 
   if (clips.length === 0) {
     throw new Error(`No clip files found in run directory for run_id: ${runId}`);
@@ -502,8 +523,8 @@ export async function runTestRenderFromRun(
   }
 
   // Normalize clips to target FPS + H.264
-  console.log(`[testRender] Normalizing ${clips.length} clips to ${targetFps}fps in ${runDir}`);
-  const normalizedPaths = await normalizeClips(clips, runDir, targetFps);
+  console.log(`[testRender] Normalizing ${clips.length} clips to ${effectiveTargetFps}fps in ${runDir}`);
+  const normalizedPaths = await normalizeClips(clips, runDir, effectiveTargetFps);
 
   // Resolve manifest based on mode
   let manifest: CompositionManifest;
@@ -538,11 +559,12 @@ export async function runTestRenderFromRun(
       brand_profile: effectiveBrandProfile,
       clip_filenames: clipFilenames,
       voiceover_filename: voiceoverFilename,
+      target_fps: effectiveTargetFps,
     });
   } else if (templateType) {
-    manifest = buildTemplateManifest(templateType, clips, platform, runId, providedBrandProfile?.client_id ?? clientId ?? 'test', targetFps, aspectRatio);
+    manifest = buildTemplateManifest(templateType, clips, platform, runId, providedBrandProfile?.client_id ?? clientId ?? 'test', effectiveTargetFps, aspectRatio);
   } else {
-    manifest = buildStubManifest(clips, platform, runId, providedBrandProfile?.client_id ?? 'test', targetFps, aspectRatio);
+    manifest = buildStubManifest(clips, platform, runId, providedBrandProfile?.client_id ?? 'test', effectiveTargetFps, aspectRatio);
   }
 
   // Patch manifest to use normalized clip filenames (relative paths only for staticFile)
@@ -554,7 +576,7 @@ export async function runTestRenderFromRun(
   if (aspectRatio === '9:16') { width = 1080; height = 1920; }
   else if (aspectRatio === '16:9') { width = 1920; height = 1080; }
   else if (aspectRatio === '1:1') { width = 1080; height = 1080; }
-  manifest = { ...manifest, fps: targetFps, width, height };
+  manifest = { ...manifest, fps: effectiveTargetFps, width, height };
 
   const outputPath = join(runDir, 'test_render.mp4');
   const start = Date.now();

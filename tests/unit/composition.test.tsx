@@ -104,6 +104,12 @@ describe('TabarioComposition', () => {
     expect((audios[0] as HTMLAudioElement).src).toContain('voiceover.mp3');
   });
 
+  it('renders file-backed clips through OffthreadVideo for frame-accurate renders', () => {
+    const { container } = render(<TabarioComposition {...baseManifest()} />);
+    const videos = container.querySelectorAll('[data-remotion-component="offthread-video"]');
+    expect(videos.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('renders music with ducked volume when music_source.url is set', () => {
     const m = baseManifest();
     m.audio_track.music_source = { url: 'https://cdn/music.mp3' };

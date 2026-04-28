@@ -73,6 +73,11 @@ export const Video: React.FC<{ src: string; style?: AnyStyle }> = ({ src, style 
   <video data-testid="video" src={src} style={style} />
 );
 
+export const OffthreadVideo: React.FC<{ src: string; style?: AnyStyle }> = ({ src, style }) => (
+  // eslint-disable-next-line jsx-a11y/media-has-caption
+  <video data-testid="video" data-remotion-component="offthread-video" src={src} style={style} />
+);
+
 export const Audio: React.FC<{ src: string; volume?: number }> = ({ src, volume }) => (
   <audio data-testid="audio" src={src} data-volume={String(volume ?? '')} />
 );

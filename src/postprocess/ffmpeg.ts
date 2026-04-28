@@ -10,6 +10,7 @@ export interface PostProcessOptions {
   inputPath: string;
   outputPath: string;
   audioTargets?: AudioTargets;
+  targetFps?: number;
 }
 
 /**
@@ -64,7 +65,7 @@ async function probeVideoCodec(filePath: string): Promise<string | null> {
  * Probe the frame rate of a video file using ffprobe.
  * Returns the FPS as an integer (e.g. 32 from "32000/1000") or null on failure.
  */
-async function probeFps(filePath: string): Promise<number | null> {
+export async function probeFps(filePath: string): Promise<number | null> {
   try {
     const { stdout } = await execFileAsync('ffprobe', [
       '-v', 'error',
@@ -93,47 +94,68 @@ async function probeFps(filePath: string): Promise<number | null> {
 }
 
 /**
- * Transcode a video clip to H.264 in-place if it is not already H.264.
- * Remotion/Chrome requires H.264 video; ComfyUI WAN models produce H.265.
- * If targetFps is provided and differs from source FPS, also normalizes frame rate.
- * Returns the path to the H.264-compatible file (may be the original or a new file).
+ * Normalize a video clip for Remotion rendering:
+ * - H.264/yuv420p
+ * - constant frame rate
+ * - reset timestamps to the selected frame cadence
  */
 export async function ensureH264(inputPath: string, targetFps?: number): Promise<string> {
   const codec = await probeVideoCodec(inputPath);
   const fps = await probeFps(inputPath);
-  const needsFpsConversion = targetFps !== undefined && fps !== null && fps !== targetFps;
+  const effectiveFps = targetFps ?? fps ?? 30;
+  const needsFpsConversion = fps !== null && fps !== effectiveFps;
 
-  console.log(`[ffmpeg] ensureH264: ${inputPath} → codec=${codec ?? 'unknown'}, fps=${fps ?? 'unknown'}, targetFps=${targetFps ?? 'none'}, needsConversion=${needsFpsConversion}`);
+  console.log(`[ffmpeg] ensureH264: ${inputPath} → codec=${codec ?? 'unknown'}, fps=${fps ?? 'unknown'}, targetFps=${effectiveFps}, needsConversion=${needsFpsConversion}`);
 
-  if (codec === 'h264' && !needsFpsConversion) {
-    console.log(`[ffmpeg] Clip already H.264 at ${fps}fps, skipping transcode: ${inputPath}`);
+  if (codec === 'h264' && !needsFpsConversion && inputPath.includes(`_cfr${effectiveFps}_h264`)) {
+    console.log(`[ffmpeg] Clip already normalized at ${effectiveFps}fps, skipping transcode: ${inputPath}`);
     return inputPath;
   }
 
-  console.log(`[ffmpeg] Transcoding clip from ${codec ?? 'unknown'} → H.264${needsFpsConversion ? ` (normalizing ${fps}fps → ${targetFps}fps)` : ''}: ${inputPath}`);
-  const outputPath = inputPath.replace(/(\.[^.]+)$/, '_h264$1');
-
-  const args = [
-    '-i', inputPath,
-    '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '23',
-    '-pix_fmt', 'yuv420p',
-    // Force an I-frame at t=0 and every 30 frames so Remotion can seek
-    // to the first frame without a decoder stall (the stutter/freeze bug).
-    '-force_key_frames', 'expr:gte(t,0)',
-    '-g', '30',
-    '-keyint_min', '1',
-  ];
-  if (needsFpsConversion) {
-    args.push('-r', String(targetFps));
-  }
-  args.push('-c:a', 'copy', '-movflags', '+faststart', '-y', outputPath);
+  console.log(`[ffmpeg] Normalizing clip from ${codec ?? 'unknown'} → CFR H.264/yuv420p${needsFpsConversion ? ` (${fps}fps → ${effectiveFps}fps)` : ` (${effectiveFps}fps)`}: ${inputPath}`);
+  const outputPath = inputPath.replace(/(\.[^.]+)$/, `_cfr${effectiveFps}_h264$1`);
+  const args = buildNormalizeClipArgs({
+    inputPath,
+    outputPath,
+    targetFps: effectiveFps,
+    sourceFps: fps,
+  });
 
   await execFileAsync('ffmpeg', args);
 
   console.log(`[ffmpeg] Transcode complete: ${outputPath}`);
   return outputPath;
+}
+
+export interface NormalizeClipArgOptions {
+  inputPath: string;
+  outputPath: string;
+  targetFps: number;
+  sourceFps?: number | null;
+}
+
+export function buildNormalizeClipArgs(options: NormalizeClipArgOptions): string[] {
+  const { inputPath, outputPath, targetFps, sourceFps } = options;
+  const needsFpsConversion = sourceFps !== null && sourceFps !== undefined && sourceFps !== targetFps;
+  const vf = [
+    ...(needsFpsConversion ? [`fps=${targetFps}`] : []),
+    `setpts=N/(${targetFps}*TB)`,
+  ].join(',');
+
+  return [
+    '-i', inputPath,
+    '-vf', vf,
+    '-fps_mode', 'cfr',
+    '-r', String(targetFps),
+    '-c:v', 'libx264',
+    '-preset', 'fast',
+    '-crf', '23',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'copy',
+    '-movflags', '+faststart',
+    '-y',
+    outputPath,
+  ];
 }
 
 /**
@@ -143,10 +165,10 @@ export async function ensureH264(inputPath: string, targetFps?: number): Promise
  * the video to H.264 with faststart for web delivery.
  */
 export function buildFfmpegArgs(options: PostProcessOptions): string[] {
-  const { inputPath, outputPath, audioTargets } = options;
+  const { inputPath, outputPath, audioTargets, targetFps } = options;
   const lufsTarget = audioTargets?.voiceover_lufs ?? DEFAULT_LUFS;
 
-  return [
+  const args = [
     '-i', inputPath,
     '-af', `loudnorm=I=${lufsTarget}:LRA=11:TP=-1.5`,
     '-c:v', 'libx264',
@@ -155,7 +177,12 @@ export function buildFfmpegArgs(options: PostProcessOptions): string[] {
     '-c:a', 'aac',
     '-b:a', '192k',
     '-movflags', '+faststart',
-    '-y',
-    outputPath,
   ];
+
+  if (targetFps !== undefined) {
+    args.push('-fps_mode', 'cfr', '-r', String(targetFps));
+  }
+
+  args.push('-y', outputPath);
+  return args;
 }

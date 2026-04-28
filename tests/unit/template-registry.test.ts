@@ -66,13 +66,13 @@ describe('TemplateRegistry', () => {
     it('has expected roles in order', () => {
       const template = TemplateRegistry.resolve('ad');
       const roles = template.scene_blueprint.map((s) => s.role);
-      expect(roles).toEqual(['hook', 'problem', 'product', 'feature', 'cta']);
+      expect(roles).toEqual(['hook', 'problem', 'solution', 'proof', 'outcome', 'cta']);
     });
 
-    it('feature slot has one_to_many cardinality', () => {
+    it('proof slot has one_to_many cardinality', () => {
       const template = TemplateRegistry.resolve('ad');
-      const feature = template.scene_blueprint.find((s) => s.role === 'feature');
-      expect(feature?.cardinality).toBe('one_to_many');
+      const proof = template.scene_blueprint.find((s) => s.role === 'proof');
+      expect(proof?.cardinality).toBe('one_to_many');
     });
   });
 

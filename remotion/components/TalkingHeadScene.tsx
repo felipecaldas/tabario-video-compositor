@@ -1,8 +1,9 @@
 import React from 'react';
-import { Video, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+import { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
 import { useBrand } from '../BrandContext';
 import { getAspectRatio, scaledSize } from '../utils/layout';
 import { TalkingHeadLayout } from '../../src/types';
+import { FrameAccurateVideo } from './FrameAccurateVideo';
 
 interface TalkingHeadSceneProps {
   src: string;
@@ -41,7 +42,7 @@ const FullPresenter: React.FC<{
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      <Video src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <FrameAccurateVideo src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       <div
         style={{
           position: 'absolute',
@@ -68,7 +69,7 @@ const SidebarPresenter: React.FC<{
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: '0 0 55%', background: '#000' }} />
         <div style={{ flex: '0 0 45%', position: 'relative', overflow: 'hidden' }}>
-          <Video src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <FrameAccurateVideo src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       </div>
     );
@@ -81,7 +82,7 @@ const SidebarPresenter: React.FC<{
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'row' }}>
       <div style={{ flex: `0 0 ${contentPct}%`, background: '#000' }} />
       <div style={{ flex: `0 0 ${presenterPct}%`, position: 'relative', overflow: 'hidden' }}>
-        <Video src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <FrameAccurateVideo src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     </div>
   );
@@ -119,7 +120,7 @@ const PipPresenter: React.FC<{
           transformOrigin: 'bottom right',
         }}
       >
-        <Video src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <FrameAccurateVideo src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     </div>
   );

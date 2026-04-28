@@ -17,6 +17,10 @@ jest.mock('../../src/renderer/renderWorker', () => ({
 jest.mock('../../src/postprocess/ffmpeg', () => ({
   applyPostProcessing: jest.fn(),
   ensureH264: jest.fn(),
+  probeFps: jest.fn(),
+}));
+jest.mock('../../src/asr/transcribe', () => ({
+  transcribe: jest.fn(),
 }));
 
 import { runComposeJob } from '../../src/runner';
@@ -24,6 +28,8 @@ import { hydrateBrandProfile } from '../../src/brand/hydrator';
 import { generateManifest } from '../../src/manifest/generator';
 import { renderComposition } from '../../src/renderer/renderWorker';
 import { applyPostProcessing, ensureH264 } from '../../src/postprocess/ffmpeg';
+import { probeFps } from '../../src/postprocess/ffmpeg';
+import { transcribe } from '../../src/asr/transcribe';
 import {
   BrandProfile,
   ComposeJob,
@@ -36,6 +42,8 @@ const mockGenerate = generateManifest as unknown as jest.Mock;
 const mockRender = renderComposition as unknown as jest.Mock;
 const mockPost = applyPostProcessing as unknown as jest.Mock;
 const mockH264 = ensureH264 as unknown as jest.Mock;
+const mockProbeFps = probeFps as unknown as jest.Mock;
+const mockTranscribe = transcribe as unknown as jest.Mock;
 
 function makeJob(): ComposeJob {
   return {
@@ -119,6 +127,8 @@ describe('runComposeJob', () => {
   beforeEach(() => {
     mockHydrate.mockReset().mockResolvedValue(makeBrand());
     mockGenerate.mockReset().mockResolvedValue(makeManifest());
+    mockTranscribe.mockReset().mockResolvedValue({ words: [], pauses: [] });
+    mockProbeFps.mockReset().mockResolvedValue(32);
     // Default: ensureH264 is a no-op (returns the path untouched)
     mockH264.mockReset().mockImplementation(async (p: string) => p);
     mockRender.mockReset().mockResolvedValue(undefined);
@@ -149,6 +159,7 @@ describe('runComposeJob', () => {
     await runComposeJob(makeJob(), makePayload(), () => {});
     expect(mockHydrate).toHaveBeenCalledTimes(1);
     expect(mockGenerate).toHaveBeenCalledTimes(1);
+    expect(mockTranscribe).toHaveBeenCalledTimes(1);
     expect(mockH264).toHaveBeenCalledTimes(2); // one per clip
     expect(mockRender).toHaveBeenCalledTimes(1);
     expect(mockPost).toHaveBeenCalledTimes(1);
@@ -174,6 +185,38 @@ describe('runComposeJob', () => {
     const renderCall = mockRender.mock.calls[0][0];
     expect(renderCall.manifest.width).toBe(720);
     expect(renderCall.manifest.height).toBe(1280);
+  });
+
+  it('transcribes the voiceover with manifest fps and attaches caption_track', async () => {
+    const captionTrack = {
+      words: [{ word: 'Hello', start_frame: 0, end_frame: 12 }],
+      pauses: [{ start_frame: 12, duration_frames: 9 }],
+    };
+    mockTranscribe.mockResolvedValueOnce(captionTrack);
+
+    await runComposeJob(makeJob(), makePayload(), () => {});
+
+    expect(mockTranscribe).toHaveBeenCalledWith(
+      '/data/shared/run-abc/voiceover.mp3',
+      { fps: 32 },
+    );
+    const renderCall = mockRender.mock.calls[0][0];
+    expect(renderCall.manifest.caption_track).toEqual(captionTrack);
+  });
+
+  it('continues without captions when transcription fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockTranscribe.mockRejectedValueOnce(new Error('asr unavailable'));
+
+    await runComposeJob(makeJob(), makePayload(), () => {});
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('continuing without captions: asr unavailable'),
+    );
+    const renderCall = mockRender.mock.calls[0][0];
+    expect(renderCall.manifest.caption_track).toBeUndefined();
+    expect(mockRender).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 
   it('overrides manifest width/height from video_format 16:9', async () => {
@@ -309,5 +352,15 @@ describe('runComposeJob', () => {
       '/data/shared/run-abc/clip_000.mp4',
       '/data/shared/run-abc/clip_001.mp4',
     ]);
+  });
+
+  it('uses the resolved source clip FPS for manifest generation, normalization, render, and final encode', async () => {
+    await runComposeJob(makeJob(), makePayload(), () => {});
+
+    expect(mockGenerate.mock.calls[0][0].target_fps).toBe(32);
+    expect(mockH264).toHaveBeenCalledWith('/data/shared/run-abc/clip_000.mp4', 32);
+    expect(mockH264).toHaveBeenCalledWith('/data/shared/run-abc/clip_001.mp4', 32);
+    expect(mockRender.mock.calls[0][0].manifest.fps).toBe(32);
+    expect(mockPost.mock.calls[0][0].targetFps).toBe(32);
   });
 });

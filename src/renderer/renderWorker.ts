@@ -63,7 +63,7 @@ export async function renderComposition(options: RenderOptions): Promise<void> {
     codec: 'h264',
     outputLocation: outputPath,
     inputProps,
-    onProgress: ({ progress }) => {
+    onProgress: ({ progress }: { progress: number }) => {
       const pct = Math.round(progress * 100);
       console.log(`[renderer] Render progress: ${pct}%`);
       onProgress?.(pct);

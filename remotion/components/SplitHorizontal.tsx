@@ -1,5 +1,5 @@
 import React from 'react';
-import { Video } from 'remotion';
+import { FrameAccurateVideo } from './FrameAccurateVideo';
 
 interface SplitHorizontalProps {
   leftSrc: string;
@@ -18,10 +18,10 @@ export const SplitHorizontal: React.FC<SplitHorizontalProps> = ({
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
       <div style={{ width: leftPct, overflow: 'hidden' }}>
-        <Video src={leftSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <FrameAccurateVideo src={leftSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
       <div style={{ width: rightPct, overflow: 'hidden' }}>
-        <Video src={rightSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <FrameAccurateVideo src={rightSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     </div>
   );

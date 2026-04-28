@@ -10,6 +10,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "remotion": ["src/types/remotion"],
+      "@remotion/renderer": ["src/types/remotion-renderer"]
+    },
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true

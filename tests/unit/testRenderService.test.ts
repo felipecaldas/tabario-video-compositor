@@ -73,15 +73,13 @@ describe('buildTemplateManifest', () => {
     }
   });
 
-  it('ad blueprint: scene roles in order (hook → problem → product → feature×N → cta)', () => {
-    // 7 clips: 4 one-slots (hook/problem/product/cta) + 3 extra → feature gets 3 scenes
+  it('ad blueprint: scene roles in order (hook → problem → solution → proof×N → outcome → cta)', () => {
+    // 7 clips: 5 one-slots (hook/problem/solution/outcome/cta) + 2 extra → proof gets 3 scenes
     const manifest = buildTemplateManifest('ad', makeClipsN(7), 'tiktok', 'run-1', 'client-1');
-    // First scene must have hook overlay
-    expect(manifest.scenes[0].scene_overlays?.[0]?.text).toBe('[hook_headline]');
-    // Last scene before closing must have cta overlay
-    const lastScene = manifest.scenes[manifest.scenes.length - 1];
-    expect(lastScene.scene_overlays?.[0]?.text).toBe('[cta_text]');
-    // Total scenes = 4 one-slots + 3 extra-feature = 7
+    // Overlays are omitted in stub/template mode — no real copy exists yet
+    expect(manifest.scenes[0].scene_overlays).toBeUndefined();
+    expect(manifest.scenes[manifest.scenes.length - 1].scene_overlays).toBeUndefined();
+    // Total scenes = 5 one-slots + 2 extra-proof = 7
     expect(manifest.scenes).toHaveLength(7);
   });
 

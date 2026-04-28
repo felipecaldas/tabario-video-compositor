@@ -9,6 +9,8 @@ export interface HandoffPayload {
   clip_paths: string[];
   video_format: string;
   target_resolution: string;
+  /** Optional canonical output FPS. When omitted, compositor preserves source clip FPS. */
+  target_fps?: number;
   video_idea_id?: string;
   workflow_id?: string;
   user_access_token: string;
@@ -147,7 +149,8 @@ export type ComponentType =
   | 'end_card'
   | 'typographic_background'
   | 'brand_accent_line'
-  | 'motion_badge';
+  | 'motion_badge'
+  | 'metric_callout';
 
 export type TextOverlayComponent = 'kinetic_title' | 'stagger_title' | 'caption_bar';
 
