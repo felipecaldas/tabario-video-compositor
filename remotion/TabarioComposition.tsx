@@ -36,6 +36,7 @@ import { BrandAccentLine } from './components/BrandAccentLine';
 import { MotionBadge } from './components/MotionBadge';
 import { MetricCallout } from './components/MetricCallout';
 import { CinematicBars } from './components/CinematicBars';
+import { CaptionTrack } from './components/captions/CaptionTrack';
 import { SplitHorizontal } from './components/SplitHorizontal';
 import { SplitVertical } from './components/SplitVertical';
 import { PictureInPicture } from './components/PictureInPicture';
@@ -172,6 +173,7 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
     audio_track,
     closing,
     brandProfile,
+    caption_track,
   } = props;
 
   let accFrame = 0;
@@ -339,6 +341,9 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
 
         {/* Optional cinematic bars — only when brand profile opts in */}
         {brandProfile?.motion_style?.cinematic_bars && <CinematicBars />}
+
+        {/* Word-level captions — only rendered when the manifest includes a caption_track */}
+        {caption_track && <CaptionTrack track={caption_track} />}
       </AbsoluteFill>
     </BrandProvider>
     </StyleProvider>

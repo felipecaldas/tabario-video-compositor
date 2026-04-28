@@ -177,6 +177,7 @@ export interface CompositionManifest {
   audio_track: AudioTrack;
   closing: ClosingSpec;
   narrative_arcs?: NarrativeArc[];
+  caption_track?: CaptionTrack;
 }
 
 export interface ManifestScene {
@@ -231,6 +232,22 @@ export interface NarrativeArc {
   range: [number, number];
   grade: GradeType;
   music_cue?: string;
+}
+
+export interface CaptionWord {
+  word: string;
+  start_frame: number;
+  end_frame: number;
+}
+
+export interface PauseMarker {
+  start_frame: number;
+  duration_frames: number;
+}
+
+export interface CaptionTrack {
+  words: CaptionWord[];
+  pauses?: PauseMarker[];
 }
 
 // ─── Compose job ─────────────────────────────────────────────────────────────

@@ -91,6 +91,17 @@ export const CompositionManifestSchema = z.object({
       music_cue: z.string().optional(),
     })
   ).optional(),
+  caption_track: z.object({
+    words: z.array(z.object({
+      word: z.string(),
+      start_frame: z.number().int().min(0),
+      end_frame: z.number().int().min(0),
+    })),
+    pauses: z.array(z.object({
+      start_frame: z.number().int().min(0),
+      duration_frames: z.number().int().positive(),
+    })).optional(),
+  }).optional(),
 });
 
 export type CompositionManifestInput = z.input<typeof CompositionManifestSchema>;
