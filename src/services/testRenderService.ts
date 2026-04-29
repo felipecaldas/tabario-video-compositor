@@ -1,16 +1,20 @@
-import { readdirSync, existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { readdirSync, existsSync, readFileSync, statSync } from 'fs';
+import { basename, join } from 'path';
 import {
   CompositionManifest, BrandProfile, TransitionType, Brief,
   LayoutType, TalkingHeadLayout,
 } from '../types';
 import { CompositionManifestSchema } from '../manifest/schema';
 import { renderComposition } from '../renderer/renderWorker';
-import { ensureH264, probeFps } from '../postprocess/ffmpeg';
+import { ensureH264, probeDurationSeconds, probeFps } from '../postprocess/ffmpeg';
 import { hydrateBrandProfile, BrandProfileNotFoundError } from '../brand/hydrator';
 import { generateManifest } from '../manifest/generator';
 import { TemplateRegistry } from '../templates/registry';
 import { SceneSlot, SceneRole, DefaultTransition } from '../templates/schema';
+import { buildTimelineManifest } from '../timeline';
+import { renderGraphicsPlates } from '../renderer/graphicsPlates';
+import { renderHybridFfmpeg } from '../renderer/ffmpegHybrid';
+import { resolveRendererSelector } from '../runner';
 
 const DATA_SHARED_BASE = process.env.DATA_SHARED_BASE ?? '/data/shared';
 
@@ -29,12 +33,32 @@ export const TEST_BRAND_PROFILE: BrandProfile = {
   cta_defaults: { url: 'https://tabario.com', show_qr: false, logo_position: 'bottom-right' },
 };
 
+function summarizeClipNames(clips: ClipMeta[]): string {
+  return clips.length > 0 ? clips.map((clip) => clip.filename).join(', ') : '(none)';
+}
+
+function summarizeManifest(manifest: CompositionManifest): string {
+  return [
+    `run_id=${manifest.run_id}`,
+    `schema=${manifest.schema}`,
+    `scenes=${manifest.scenes?.length ?? 0}`,
+    `transitions=${manifest.transitions?.length ?? 0}`,
+    `overlays=${manifest.overlays?.length ?? 0}`,
+    `duration=${manifest.duration_frames}`,
+    `fps=${manifest.fps}`,
+    `size=${manifest.width}x${manifest.height}`,
+  ].join(', ');
+}
+
 export interface ClipMeta {
   filename: string;
   index: number;
 }
 
-export function scanRunDirectory(runId: string, basePath?: string): { clips: ClipMeta[]; hasVoiceover: boolean } {
+export function scanRunDirectory(
+  runId: string,
+  basePath?: string,
+): { clips: ClipMeta[]; hasVoiceover: boolean; voiceoverFilename?: string } {
   const dir = join(basePath ?? DATA_SHARED_BASE, runId);
   if (!existsSync(dir)) {
     throw new Error(`run_id directory not found: ${dir}`);
@@ -56,9 +80,10 @@ export function scanRunDirectory(runId: string, basePath?: string): { clips: Cli
     })
     .sort((a, b) => a.index - b.index);
 
-  const hasVoiceover = files.some((f) => f === 'voiceover.mp3' || f === 'voiceover.wav');
+  const voiceoverFilename = files.find((f) => f === 'voiceover.mp3' || f === 'voiceover.wav');
+  const hasVoiceover = Boolean(voiceoverFilename);
 
-  return { clips, hasVoiceover };
+  return { clips, hasVoiceover, voiceoverFilename };
 }
 
 export type AspectRatio = '9:16' | '16:9' | '1:1';
@@ -70,6 +95,7 @@ export function buildStubManifest(
   clientId: string,
   fps: number = 24,
   aspectRatio?: AspectRatio,
+  voiceoverFilename: string = 'voiceover.mp3',
 ): CompositionManifest {
   let width: number;
   let height: number;
@@ -121,7 +147,7 @@ export function buildStubManifest(
     transitions,
     overlays: [],
     audio_track: {
-      voiceover_filename: 'voiceover.mp3',
+      voiceover_filename: voiceoverFilename,
       lufs_target: -16,
       music_ducking_db: -12,
     },
@@ -178,6 +204,7 @@ export function buildTemplateManifest(
   clientId: string,
   fps: number = 24,
   aspectRatio?: AspectRatio,
+  voiceoverFilename: string = 'voiceover.mp3',
 ): CompositionManifest {
   const template = TemplateRegistry.resolve(templateId);
 
@@ -282,7 +309,7 @@ export function buildTemplateManifest(
     transitions,
     overlays,
     audio_track: {
-      voiceover_filename: 'voiceover.mp3',
+      voiceover_filename: voiceoverFilename,
       lufs_target: -16,
       music_ducking_db: -12,
     },
@@ -372,8 +399,15 @@ export async function runTestRender(options: TestRenderOptions): Promise<{ outpu
   const { runId, clientId, platform = 'tiktok', overrides, basePath } = options;
 
   const runDir = join(basePath ?? DATA_SHARED_BASE, runId);
-  const { clips, hasVoiceover } = scanRunDirectory(runId, basePath);
+  const { clips, hasVoiceover, voiceoverFilename } = scanRunDirectory(runId, basePath);
   const targetFps = await resolveTestTargetFps(clips, runDir, options.targetFps);
+
+  console.log(
+    `[testRender] Run scan: run_id=${runId}, runDir=${runDir}, clips=${clips.length}, ` +
+      `hasVoiceover=${hasVoiceover}, voiceover=${voiceoverFilename ?? '(missing)'}, ` +
+      `clipFiles=[${summarizeClipNames(clips)}]`,
+  );
+  console.log(`[testRender] Target FPS resolved: ${targetFps}`);
 
   if (clips.length === 0) {
     throw new Error(`No clip files found in run directory for run_id: ${runId}`);
@@ -390,17 +424,25 @@ export async function runTestRender(options: TestRenderOptions): Promise<{ outpu
   } else if (options.cachedManifest) {
     manifest = options.cachedManifest;
   } else {
-    manifest = buildStubManifest(clips, platform, runId, clientId ?? 'test', targetFps);
+    manifest = buildStubManifest(clips, platform, runId, clientId ?? 'test', targetFps, undefined, voiceoverFilename);
   }
 
   if (overrides) {
     manifest = applyOverrides(manifest, overrides);
   }
 
+  manifest = await extendManifestToVoiceover(manifest, runDir);
+
   const outputPath = join(runDir, 'test_render.mp4');
+  const manifestSource = options.manifest ? 'provided' : options.cachedManifest ? 'cached' : 'stub';
+  console.log(
+    `[testRender] Manifest source=${manifestSource}, platform=${platform}, client_id=${clientId ?? 'test'}, ` +
+      `overrides=${Boolean(overrides)}`,
+  );
+  console.log(`[testRender] Final manifest summary: ${summarizeManifest(manifest)}, outputPath=${outputPath}`);
 
   const start = Date.now();
-  await renderComposition({
+  await renderWithSelectedRenderer({
     manifest,
     outputPath,
     publicDir: runDir,
@@ -481,6 +523,98 @@ function buildManifestWithNormalizedClips(
   };
 }
 
+async function extendManifestToVoiceover(
+  manifest: CompositionManifest,
+  runDir: string,
+): Promise<CompositionManifest> {
+  const voiceoverFilename = manifest.audio_track.voiceover_filename;
+  if (!voiceoverFilename) {
+    return manifest;
+  }
+
+  const voiceoverDurationSeconds = await probeDurationSeconds(join(runDir, voiceoverFilename));
+  if (!voiceoverDurationSeconds) {
+    return manifest;
+  }
+
+  const requiredDurationFrames = Math.ceil(voiceoverDurationSeconds * manifest.fps);
+  if (requiredDurationFrames <= manifest.duration_frames) {
+    return manifest;
+  }
+
+  const extensionFrames = requiredDurationFrames - manifest.duration_frames;
+  console.log(
+    `[testRender] Extending manifest to cover voiceover: ` +
+      `voiceover=${voiceoverFilename}, voiceoverFrames=${requiredDurationFrames}, ` +
+      `manifestFrames=${manifest.duration_frames}, extensionFrames=${extensionFrames}`,
+  );
+
+  return {
+    ...manifest,
+    duration_frames: requiredDurationFrames,
+    closing: {
+      ...manifest.closing,
+      duration_frames: manifest.closing.duration_frames + extensionFrames,
+    },
+  };
+}
+
+async function renderWithSelectedRenderer(options: {
+  manifest: CompositionManifest;
+  outputPath: string;
+  publicDir: string;
+  brandProfile: BrandProfile;
+  onProgress?: (pct: number) => void;
+}): Promise<void> {
+  const renderer = resolveRendererSelector();
+  console.log(`[testRender] Selected renderer: ${renderer}`);
+
+  if (renderer === 'ffmpeg_hybrid') {
+    const availableClipFilenames = options.manifest.scenes
+      .map((scene) => scene.clip_filename)
+      .filter((filename): filename is string => Boolean(filename));
+    const timeline = buildTimelineManifest(options.manifest, {
+      availableClipFilenames,
+      outputFilename: basename(options.outputPath),
+    });
+    console.log(
+      `[testRender] Hybrid timeline summary: assets=${timeline.assets.length}, ` +
+        `videoClips=${timeline.tracks.video.length}, audioClips=${timeline.tracks.audio.length}, ` +
+        `graphicsClips=${timeline.tracks.graphics.length}, transitions=${timeline.transitions.length}`,
+    );
+
+    const graphicsPlates = await renderGraphicsPlates({
+      timeline,
+      outputDir: options.publicDir,
+      publicDir: options.publicDir,
+      brandProfile: options.brandProfile,
+      onProgress: (plate, progress) => {
+        console.log(`[testRender] Graphics plate ${plate.id} ${progress}%`);
+      },
+    });
+    console.log(`[testRender] Hybrid graphics plates: count=${graphicsPlates.length}`);
+
+    await renderHybridFfmpeg({
+      timeline,
+      inputDir: options.publicDir,
+      outputPath: options.outputPath,
+      graphicsPlates: graphicsPlates.map((plate) => ({
+        clipId: plate.clipId,
+        filename: plate.filename,
+      })),
+    });
+    return;
+  }
+
+  await renderComposition({
+    manifest: options.manifest,
+    outputPath: options.outputPath,
+    publicDir: options.publicDir,
+    brandProfile: options.brandProfile,
+    onProgress: options.onProgress,
+  });
+}
+
 export interface RunTestRenderOptions {
   runId: string;
   clientId?: string;
@@ -512,8 +646,15 @@ export async function runTestRenderFromRun(
   } = options;
 
   const runDir = join(basePath ?? DATA_SHARED_BASE, runId);
-  const { clips, hasVoiceover } = scanRunDirectory(runId, basePath);
+  const { clips, hasVoiceover, voiceoverFilename } = scanRunDirectory(runId, basePath);
   const effectiveTargetFps = await resolveTestTargetFps(clips, runDir, targetFps);
+
+  console.log(
+    `[testRender] Run scan: run_id=${runId}, runDir=${runDir}, clips=${clips.length}, ` +
+      `hasVoiceover=${hasVoiceover}, voiceover=${voiceoverFilename ?? '(missing)'}, ` +
+      `clipFiles=[${summarizeClipNames(clips)}]`,
+  );
+  console.log(`[testRender] Target FPS resolved: ${effectiveTargetFps}`);
 
   if (clips.length === 0) {
     throw new Error(`No clip files found in run directory for run_id: ${runId}`);
@@ -525,6 +666,11 @@ export async function runTestRenderFromRun(
   // Normalize clips to target FPS + H.264
   console.log(`[testRender] Normalizing ${clips.length} clips to ${effectiveTargetFps}fps in ${runDir}`);
   const normalizedPaths = await normalizeClips(clips, runDir, effectiveTargetFps);
+  console.log(
+    `[testRender] Normalized clips: ${Object.entries(normalizedPaths)
+      .map(([original, normalized]) => `${original}->${basename(normalized)}`)
+      .join(', ')}`,
+  );
 
   // Resolve manifest based on mode
   let manifest: CompositionManifest;
@@ -550,7 +696,7 @@ export async function runTestRenderFromRun(
       }
     }
     const clipFilenames = clips.map((c) => c.filename);
-    const voiceoverFilename = 'voiceover.mp3';
+    const resolvedVoiceoverFilename = voiceoverFilename ?? 'voiceover.mp3';
     manifest = await generateManifest({
       run_id: runId,
       client_id: effectiveClientId,
@@ -558,13 +704,30 @@ export async function runTestRenderFromRun(
       brief: runDirData.brief,
       brand_profile: effectiveBrandProfile,
       clip_filenames: clipFilenames,
-      voiceover_filename: voiceoverFilename,
+      voiceover_filename: resolvedVoiceoverFilename,
       target_fps: effectiveTargetFps,
     });
   } else if (templateType) {
-    manifest = buildTemplateManifest(templateType, clips, platform, runId, providedBrandProfile?.client_id ?? clientId ?? 'test', effectiveTargetFps, aspectRatio);
+    manifest = buildTemplateManifest(
+      templateType,
+      clips,
+      platform,
+      runId,
+      providedBrandProfile?.client_id ?? clientId ?? 'test',
+      effectiveTargetFps,
+      aspectRatio,
+      voiceoverFilename,
+    );
   } else {
-    manifest = buildStubManifest(clips, platform, runId, providedBrandProfile?.client_id ?? 'test', effectiveTargetFps, aspectRatio);
+    manifest = buildStubManifest(
+      clips,
+      platform,
+      runId,
+      providedBrandProfile?.client_id ?? 'test',
+      effectiveTargetFps,
+      aspectRatio,
+      voiceoverFilename,
+    );
   }
 
   // Patch manifest to use normalized clip filenames (relative paths only for staticFile)
@@ -577,17 +740,31 @@ export async function runTestRenderFromRun(
   else if (aspectRatio === '16:9') { width = 1920; height = 1080; }
   else if (aspectRatio === '1:1') { width = 1080; height = 1080; }
   manifest = { ...manifest, fps: effectiveTargetFps, width, height };
+  manifest = await extendManifestToVoiceover(manifest, runDir);
 
   const outputPath = join(runDir, 'test_render.mp4');
+  const manifestSource = providedManifest
+    ? 'provided'
+    : manifestMode === 'llm'
+      ? 'llm'
+      : templateType
+        ? `template:${templateType}`
+        : 'stub';
+  console.log(
+    `[testRender] Manifest source=${manifestSource}, platform=${platform}, aspectRatio=${aspectRatio ?? '(auto)'}, ` +
+      `client_id=${clientId ?? '(from run manifest)'}, brandProfileClientId=${effectiveBrandProfile.client_id}`,
+  );
+  console.log(`[testRender] Final manifest summary: ${summarizeManifest(manifest)}, outputPath=${outputPath}`);
   const start = Date.now();
-  await renderComposition({
+  await renderWithSelectedRenderer({
     manifest,
     outputPath,
     publicDir: runDir,
     brandProfile: effectiveBrandProfile,
   });
   const durationMs = Date.now() - start;
+  const outputBytes = existsSync(outputPath) ? statSync(outputPath).size : 0;
 
-  console.log(`[testRender] Render complete: ${outputPath} (${durationMs}ms)`);
+  console.log(`[testRender] Render complete: ${outputPath} (${durationMs}ms, ${outputBytes} bytes)`);
   return { outputPath, durationMs };
 }

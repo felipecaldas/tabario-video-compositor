@@ -43,8 +43,11 @@ COPY remotion ./remotion
 RUN npx tsc --project tsconfig.build.json && \
     mkdir -p dist/manifest && \
     cp src/manifest/prompt.md dist/manifest/prompt.md && \
-    cp -r src/templates/library dist/templates/
+    cp -r src/templates/library dist/templates/ && \
+    chown -R node:node /app
 
 EXPOSE 9312
+
+USER node
 
 CMD ["node", "dist/api/server.js"]

@@ -15,6 +15,7 @@ services:
       - PORT=9312
       - DATA_SHARED_BASE=/data/shared
       - VIDEO_MERGER_URL=${VIDEO_MERGER_URL:-http://video-merger:8000}
+      - VIDEO_COMPOSITOR_RENDERER=${VIDEO_COMPOSITOR_RENDERER:-ffmpeg_hybrid}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9312/health"]

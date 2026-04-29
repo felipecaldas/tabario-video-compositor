@@ -14,6 +14,15 @@ jest.mock('../../src/manifest/generator', () => ({
 jest.mock('../../src/renderer/renderWorker', () => ({
   renderComposition: jest.fn(),
 }));
+jest.mock('../../src/renderer/finalValidation', () => ({
+  validateFinalRender: jest.fn(),
+}));
+jest.mock('../../src/renderer/ffmpegHybrid', () => ({
+  renderHybridFfmpeg: jest.fn(),
+}));
+jest.mock('../../src/renderer/graphicsPlates', () => ({
+  renderGraphicsPlates: jest.fn(),
+}));
 jest.mock('../../src/postprocess/ffmpeg', () => ({
   applyPostProcessing: jest.fn(),
   ensureH264: jest.fn(),
@@ -22,14 +31,21 @@ jest.mock('../../src/postprocess/ffmpeg', () => ({
 jest.mock('../../src/asr/transcribe', () => ({
   transcribe: jest.fn(),
 }));
+jest.mock('../../src/timeline', () => ({
+  buildTimelineManifest: jest.fn(),
+}));
 
-import { runComposeJob } from '../../src/runner';
+import { resolveRendererSelector, runComposeJob } from '../../src/runner';
 import { hydrateBrandProfile } from '../../src/brand/hydrator';
 import { generateManifest } from '../../src/manifest/generator';
 import { renderComposition } from '../../src/renderer/renderWorker';
+import { validateFinalRender } from '../../src/renderer/finalValidation';
+import { renderHybridFfmpeg } from '../../src/renderer/ffmpegHybrid';
+import { renderGraphicsPlates } from '../../src/renderer/graphicsPlates';
 import { applyPostProcessing, ensureH264 } from '../../src/postprocess/ffmpeg';
 import { probeFps } from '../../src/postprocess/ffmpeg';
 import { transcribe } from '../../src/asr/transcribe';
+import { buildTimelineManifest } from '../../src/timeline';
 import {
   BrandProfile,
   ComposeJob,
@@ -40,10 +56,14 @@ import {
 const mockHydrate = hydrateBrandProfile as unknown as jest.Mock;
 const mockGenerate = generateManifest as unknown as jest.Mock;
 const mockRender = renderComposition as unknown as jest.Mock;
+const mockValidate = validateFinalRender as unknown as jest.Mock;
+const mockHybridRender = renderHybridFfmpeg as unknown as jest.Mock;
+const mockGraphicsPlates = renderGraphicsPlates as unknown as jest.Mock;
 const mockPost = applyPostProcessing as unknown as jest.Mock;
 const mockH264 = ensureH264 as unknown as jest.Mock;
 const mockProbeFps = probeFps as unknown as jest.Mock;
 const mockTranscribe = transcribe as unknown as jest.Mock;
+const mockBuildTimeline = buildTimelineManifest as unknown as jest.Mock;
 
 function makeJob(): ComposeJob {
   return {
@@ -125,6 +145,7 @@ function makeManifest(): CompositionManifest {
 
 describe('runComposeJob', () => {
   beforeEach(() => {
+    delete process.env.VIDEO_COMPOSITOR_RENDERER;
     mockHydrate.mockReset().mockResolvedValue(makeBrand());
     mockGenerate.mockReset().mockResolvedValue(makeManifest());
     mockTranscribe.mockReset().mockResolvedValue({ words: [], pauses: [] });
@@ -132,7 +153,30 @@ describe('runComposeJob', () => {
     // Default: ensureH264 is a no-op (returns the path untouched)
     mockH264.mockReset().mockImplementation(async (p: string) => p);
     mockRender.mockReset().mockResolvedValue(undefined);
+    mockBuildTimeline.mockReset().mockReturnValue({ schema: 'timeline.v1', run_id: 'run-abc' });
+    mockGraphicsPlates.mockReset().mockResolvedValue([]);
+    mockHybridRender.mockReset().mockResolvedValue(undefined);
     mockPost.mockReset().mockResolvedValue(undefined);
+    mockValidate.mockReset().mockResolvedValue({ ok: true });
+  });
+
+  it('defaults production to the FFmpeg hybrid renderer', () => {
+    expect(resolveRendererSelector({ NODE_ENV: 'production' })).toBe('ffmpeg_hybrid');
+  });
+
+  it('defaults non-production to Remotion-primary rollback renderer', () => {
+    expect(resolveRendererSelector({ NODE_ENV: 'test' })).toBe('remotion_primary');
+  });
+
+  it('honors an explicit renderer selector', () => {
+    expect(resolveRendererSelector({ VIDEO_COMPOSITOR_RENDERER: 'ffmpeg_hybrid' })).toBe('ffmpeg_hybrid');
+    expect(resolveRendererSelector({ VIDEO_COMPOSITOR_RENDERER: 'remotion_primary' })).toBe('remotion_primary');
+  });
+
+  it('rejects unknown renderer selectors', () => {
+    expect(() => resolveRendererSelector({ VIDEO_COMPOSITOR_RENDERER: 'remotion' })).toThrow(
+      'VIDEO_COMPOSITOR_RENDERER must be "ffmpeg_hybrid" or "remotion_primary"',
+    );
   });
 
   it('completes the happy path and reports final_video_path', async () => {
@@ -147,6 +191,7 @@ describe('runComposeJob', () => {
       'transcoding',
       'rendering',
       'post_processing',
+      'validating',
       'done',
     ]);
     // path.join uses OS-native separators — assert on basename + run_id only
@@ -163,6 +208,37 @@ describe('runComposeJob', () => {
     expect(mockH264).toHaveBeenCalledTimes(2); // one per clip
     expect(mockRender).toHaveBeenCalledTimes(1);
     expect(mockPost).toHaveBeenCalledTimes(1);
+    expect(mockValidate).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the FFmpeg hybrid renderer when selected', async () => {
+    process.env.VIDEO_COMPOSITOR_RENDERER = 'ffmpeg_hybrid';
+    mockGraphicsPlates.mockResolvedValueOnce([
+      { id: 'plate:caption_track', clipId: 'caption_track', filename: 'caption-track.mov' },
+    ]);
+
+    await runComposeJob(makeJob(), makePayload(), () => {});
+
+    expect(mockBuildTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({ run_id: 'run-abc', width: 720, height: 1280 }),
+      {
+        availableClipFilenames: ['clip_000.mp4', 'clip_001.mp4'],
+        outputFilename: 'composed.mp4',
+      },
+    );
+    expect(mockGraphicsPlates).toHaveBeenCalledWith(expect.objectContaining({
+      outputDir: expect.stringContaining('run-abc'),
+      publicDir: expect.stringContaining('run-abc'),
+      brandProfile: expect.objectContaining({ client_id: 'client-1' }),
+    }));
+    expect(mockHybridRender).toHaveBeenCalledWith(expect.objectContaining({
+      timeline: { schema: 'timeline.v1', run_id: 'run-abc' },
+      inputDir: expect.stringContaining('run-abc'),
+      outputPath: expect.stringMatching(/composed\.mp4$/),
+      graphicsPlates: [{ clipId: 'caption_track', filename: 'caption-track.mov' }],
+    }));
+    expect(mockRender).not.toHaveBeenCalled();
+    expect(mockPost).not.toHaveBeenCalled();
   });
 
   it('hydrates the brand profile with client_id and user_access_token', async () => {
@@ -288,6 +364,27 @@ describe('runComposeJob', () => {
     expect(postArg.inputPath).toMatch(/composed_raw\.mp4$/);
   });
 
+  it('validates the final render against manifest output properties and persists a report', async () => {
+    await runComposeJob(makeJob(), makePayload(), () => {});
+    const [validationArg] = mockValidate.mock.calls[0];
+    expect(validationArg.outputPath).toMatch(/composed\.mp4$/);
+    expect(validationArg.reportPath).toMatch(/composed\.validation\.json$/);
+    expect(validationArg.expected).toEqual({
+      width: 720,
+      height: 1280,
+      fps: 32,
+      durationSeconds: 3,
+      requireAudio: true,
+    });
+  });
+
+  it('reports the validation report path when the job completes', async () => {
+    const updates: Array<Record<string, unknown>> = [];
+    await runComposeJob(makeJob(), makePayload(), (u) => updates.push(u));
+    const done = updates[updates.length - 1];
+    expect(done.validation_report_path).toMatch(/composed\.validation\.json$/);
+  });
+
   it('emits a "rendering" update that includes the final manifest', async () => {
     const updates: Array<Record<string, unknown>> = [];
     await runComposeJob(makeJob(), makePayload(), (u) => updates.push(u));
@@ -338,6 +435,16 @@ describe('runComposeJob', () => {
     ).rejects.toThrow('ffmpeg oom');
     expect(updates[updates.length - 1].status).toBe('failed');
     // The "done" update was never emitted because post failed first
+    expect(updates.find((u) => u.status === 'done')).toBeUndefined();
+  });
+
+  it('reports failed + rethrows when final validation fails', async () => {
+    mockValidate.mockRejectedValueOnce(new Error('mostly black output'));
+    const updates: Array<Record<string, unknown>> = [];
+    await expect(
+      runComposeJob(makeJob(), makePayload(), (u) => updates.push(u)),
+    ).rejects.toThrow('mostly black output');
+    expect(updates[updates.length - 1].status).toBe('failed');
     expect(updates.find((u) => u.status === 'done')).toBeUndefined();
   });
 

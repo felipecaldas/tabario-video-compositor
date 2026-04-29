@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   AbsoluteFill,
   Audio,
@@ -16,8 +16,7 @@ import {
 } from '../src/types';
 import { TextOverlay } from '../src/manifest/schema';
 import { BrandProvider } from './BrandContext';
-import { StyleProvider } from './StyleContext';
-import { StyleRegistry, DEFAULT_STYLE_ID } from '../src/styles/registry';
+import { safeResolveStyle, StyleProvider } from './StyleContext';
 import { KineticTitle } from './components/KineticTitle';
 import { StaggerTitle } from './components/StaggerTitle';
 import { LowerThird } from './components/LowerThird';
@@ -64,7 +63,25 @@ function isImageFile(filename?: string): boolean {
   return /\.(png|jpg|jpeg|webp|gif|avif)$/i.test(filename ?? '');
 }
 
-function renderOverlayBody(
+function nestedCta(props: Record<string, unknown>): Record<string, unknown> | undefined {
+  return typeof props.cta === 'object' && props.cta !== null
+    ? props.cta as Record<string, unknown>
+    : undefined;
+}
+
+function nestedCtaText(props: Record<string, unknown>): string | undefined {
+  return nestedCta(props)?.text as string | undefined;
+}
+
+function nestedCtaUrl(props: Record<string, unknown>): string | undefined {
+  return nestedCta(props)?.url as string | undefined;
+}
+
+function nestedCtaShowQr(props: Record<string, unknown>): boolean | undefined {
+  return nestedCta(props)?.show_qr as boolean | undefined;
+}
+
+export function renderOverlayBody(
   component: ManifestOverlay['component'],
   props: Record<string, unknown>,
   fallbackSrc?: string,
@@ -101,9 +118,9 @@ function renderOverlayBody(
     case 'end_card':
       return (
         <EndCard
-          ctaText={String(p.ctaText ?? p.text ?? '')}
-          ctaUrl={p.ctaUrl as string | undefined}
-          showQr={Boolean(p.showQr)}
+          ctaText={String(p.ctaText ?? p.text ?? nestedCtaText(p) ?? '')}
+          ctaUrl={(p.ctaUrl as string | undefined) ?? nestedCtaUrl(p)}
+          showQr={Boolean(p.showQr ?? nestedCtaShowQr(p))}
           showLogo={p.showLogo !== false}
         />
       );
@@ -176,16 +193,88 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
     caption_track,
   } = props;
 
+  // Defensive checks to prevent "Cannot read properties of undefined (reading 'map')"
+  const safeScenes = scenes ?? [];
+  const safeTransitions = transitions ?? [];
+  const safeOverlays = overlays ?? [];
+  const firstSceneClip = safeScenes[0]?.clip_filename;
+  const hasCaptionTrack = Boolean(caption_track);
+  const safeAudioTrack = audio_track ?? {
+    voiceover_filename: '',
+    lufs_target: -16,
+    music_ducking_db: -12,
+  };
+  const safeClosing = closing ?? {
+    component: 'end_card' as const,
+    cta: { text: '' },
+    show_logo: false,
+    start_frame: Math.max(0, props.duration_frames ?? 300),
+    duration_frames: 0,
+  };
+
+  useEffect(() => {
+    console.log(
+      `[remotion] TabarioComposition mounted: run_id=${props.run_id}, scenes=${safeScenes.length}, ` +
+        `transitions=${safeTransitions.length}, overlays=${safeOverlays.length}, ` +
+        `duration=${props.duration_frames}, fps=${props.fps}, size=${props.width}x${props.height}, ` +
+        `caption_track=${hasCaptionTrack}, first_clip=${firstSceneClip ?? '(none)'}`,
+    );
+  }, [
+    props.run_id,
+    props.duration_frames,
+    props.fps,
+    props.width,
+    props.height,
+    hasCaptionTrack,
+    safeScenes.length,
+    firstSceneClip,
+    safeTransitions.length,
+    safeOverlays.length,
+  ]);
+
   let accFrame = 0;
-  const sceneFrames: SceneWithStart[] = scenes.map((scene) => {
+  const sceneFrames: SceneWithStart[] = safeScenes.map((scene) => {
     const start = accFrame;
     accFrame += scene.duration_frames;
     return { ...scene, start_frame: start };
   });
 
-  const voiceoverSrc = staticFile(audio_track.voiceover_filename);
-  const musicUrl = audio_track.music_source?.url;
-  const musicVolume = dbToLinear(audio_track.music_ducking_db ?? -12);
+  const voiceoverSrc = safeAudioTrack.voiceover_filename
+    ? staticFile(safeAudioTrack.voiceover_filename)
+    : null;
+  const musicUrl = safeAudioTrack.music_source?.url;
+  const musicVolume = dbToLinear(safeAudioTrack.music_ducking_db ?? -12);
+  const firstSceneSrc = firstSceneClip ? staticFile(firstSceneClip) : null;
+  const firstTransition = safeTransitions[0];
+  const firstTransitionSources = (() => {
+    if (!firstTransition) {
+      return null;
+    }
+    const [fromIdx, toIdx] = firstTransition.between;
+    const fromScene = sceneFrames.find((s) => s.index === fromIdx);
+    const toScene = sceneFrames.find((s) => s.index === toIdx);
+    if (!fromScene?.clip_filename || !toScene?.clip_filename) {
+      return null;
+    }
+    return {
+      type: firstTransition.type,
+      fromSrc: staticFile(fromScene.clip_filename),
+      toSrc: staticFile(toScene.clip_filename),
+    };
+  })();
+
+  useEffect(() => {
+    console.log(
+      `[remotion] Media sources: firstSceneSrc=${firstSceneSrc ?? '(none)'}, ` +
+        `voiceoverSrc=${voiceoverSrc ?? '(none)'}, musicUrl=${musicUrl ?? '(none)'}`,
+    );
+    if (firstTransitionSources) {
+      console.log(
+        `[remotion] First transition: type=${firstTransitionSources.type}, ` +
+          `fromSrc=${firstTransitionSources.fromSrc}, toSrc=${firstTransitionSources.toSrc}`,
+      );
+    }
+  }, [firstSceneSrc, voiceoverSrc, musicUrl, firstTransitionSources]);
 
   const renderScene = (scene: SceneWithStart): React.ReactNode => {
     const filter = gradeToFilter(scene.grade);
@@ -314,29 +403,31 @@ export const TabarioComposition: React.FC<TabarioCompositionProps> = (props) => 
     );
   };
 
-  const editStyle = StyleRegistry.resolve(props.style_id ?? DEFAULT_STYLE_ID);
+  const editStyle = safeResolveStyle(props.style_id);
 
   return (
     <StyleProvider style={editStyle}>
     <BrandProvider brand={brandProfile ?? { id: '', client_id: props.client_id }}>
       <AbsoluteFill style={{ background: '#000' }}>
         {sceneFrames.map(renderScene)}
-        {transitions.map(renderTransition)}
-        {overlays.map(renderManifestOverlay)}
+        {safeTransitions.map(renderTransition)}
+        {safeOverlays.map(renderManifestOverlay)}
 
-        <Sequence
-          from={closing.start_frame}
-          durationInFrames={closing.duration_frames}
-        >
-          <EndCard
-            ctaText={closing.cta.text}
-            ctaUrl={closing.cta.url}
-            showQr={closing.cta.show_qr}
-            showLogo={closing.show_logo}
-          />
-        </Sequence>
+        {safeClosing.duration_frames > 0 && (
+          <Sequence
+            from={safeClosing.start_frame}
+            durationInFrames={safeClosing.duration_frames}
+          >
+            <EndCard
+              ctaText={safeClosing.cta.text}
+              ctaUrl={safeClosing.cta.url}
+              showQr={safeClosing.cta.show_qr}
+              showLogo={safeClosing.show_logo}
+            />
+          </Sequence>
+        )}
 
-        <Audio src={voiceoverSrc} />
+        {voiceoverSrc && <Audio src={voiceoverSrc} />}
         {musicUrl && <Audio src={musicUrl} volume={musicVolume} />}
 
         {/* Optional cinematic bars — only when brand profile opts in */}

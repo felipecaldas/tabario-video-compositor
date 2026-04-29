@@ -69,6 +69,7 @@ composeRouter.get('/:id', (req: Request, res: Response) => {
     run_id: job.run_id,
     status: job.status,
     final_video_path: job.final_video_path,
+    validation_report_path: job.validation_report_path,
     output_url: job.output_url,
     error: job.error,
     created_at: job.created_at,

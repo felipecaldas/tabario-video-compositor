@@ -255,7 +255,7 @@ export interface CaptionTrack {
 
 // ─── Compose job ─────────────────────────────────────────────────────────────
 
-export type JobStatus = 'pending' | 'hydrating' | 'resolving_style' | 'generating_manifest' | 'transcoding' | 'rendering' | 'post_processing' | 'done' | 'failed';
+export type JobStatus = 'pending' | 'hydrating' | 'resolving_style' | 'generating_manifest' | 'transcoding' | 'rendering' | 'post_processing' | 'validating' | 'done' | 'failed';
 
 export interface ComposeJob {
   id: string;
@@ -264,6 +264,7 @@ export interface ComposeJob {
   status: JobStatus;
   manifest?: CompositionManifest;
   final_video_path?: string;
+  validation_report_path?: string;
   output_url?: string;
   error?: string;
   created_at: Date;

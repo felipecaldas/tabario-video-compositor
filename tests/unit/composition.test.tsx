@@ -91,6 +91,35 @@ describe('dbToLinear', () => {
 });
 
 describe('TabarioComposition', () => {
+  it('does not throw when rendered with discovery-time default props', () => {
+    const minimal = {
+      schema: 'compose.v1' as const,
+      client_id: '',
+      run_id: '',
+      platform: 'tiktok',
+      fps: 30,
+      width: 1080,
+      height: 1920,
+      duration_frames: 300,
+      scenes: [],
+      transitions: [],
+      overlays: [],
+      audio_track: {
+        voiceover_filename: '',
+        lufs_target: -16,
+        music_ducking_db: -12,
+      },
+      closing: {
+        component: 'end_card' as const,
+        cta: { text: '' },
+        show_logo: false,
+        start_frame: 270,
+        duration_frames: 30,
+      },
+    };
+    expect(() => render(<TabarioComposition {...minimal} />)).not.toThrow();
+  });
+
   it('renders a Video per scene and the voiceover audio', () => {
     const { container } = render(<TabarioComposition {...baseManifest()} />);
     const videos = container.querySelectorAll('[data-testid="video"]');
@@ -104,9 +133,9 @@ describe('TabarioComposition', () => {
     expect((audios[0] as HTMLAudioElement).src).toContain('voiceover.mp3');
   });
 
-  it('renders file-backed clips through OffthreadVideo for frame-accurate renders', () => {
+  it('renders file-backed clips through Video components', () => {
     const { container } = render(<TabarioComposition {...baseManifest()} />);
-    const videos = container.querySelectorAll('[data-remotion-component="offthread-video"]');
+    const videos = container.querySelectorAll('[data-testid="video"]');
     expect(videos.length).toBeGreaterThanOrEqual(2);
   });
 

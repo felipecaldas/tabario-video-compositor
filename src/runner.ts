@@ -2,13 +2,19 @@ import { join, basename } from 'path';
 import { hydrateBrandProfile } from './brand/hydrator';
 import { generateManifest } from './manifest/generator';
 import { renderComposition } from './renderer/renderWorker';
+import { validateFinalRender } from './renderer/finalValidation';
+import { renderHybridFfmpeg } from './renderer/ffmpegHybrid';
+import { renderGraphicsPlates } from './renderer/graphicsPlates';
 import { applyPostProcessing, ensureH264, probeFps } from './postprocess/ffmpeg';
 import { transcribe } from './asr/transcribe';
+import { buildTimelineManifest } from './timeline';
 import { ComposeJob, HandoffPayload, Brief, BriefScene, ManifestScene, PlatformBriefModel, SceneBriefInput, VisualDirection } from './types';
 
 const DATA_SHARED_BASE = process.env.DATA_SHARED_BASE ?? '/data/shared';
+const RENDERER_ENV_KEY = 'VIDEO_COMPOSITOR_RENDERER';
 
-type JobUpdate = Partial<Pick<ComposeJob, 'status' | 'manifest' | 'final_video_path' | 'error'>>;
+type JobUpdate = Partial<Pick<ComposeJob, 'status' | 'manifest' | 'final_video_path' | 'validation_report_path' | 'error'>>;
+export type RendererSelector = 'ffmpeg_hybrid' | 'remotion_primary';
 
 /**
  * Resolution map: legacy short keys → (width, height) for 9:16 portrait.
@@ -21,6 +27,20 @@ const RESOLUTION_MAP: Record<string, { width: number; height: number }> = {
 };
 
 const WXH_PATTERN = /^(\d{2,5})x(\d{2,5})$/i;
+
+export function resolveRendererSelector(env: NodeJS.ProcessEnv = process.env): RendererSelector {
+  const raw = env[RENDERER_ENV_KEY]?.trim();
+  if (raw === 'ffmpeg_hybrid' || raw === 'remotion_primary') {
+    return raw;
+  }
+  if (raw) {
+    throw new Error(
+      `${RENDERER_ENV_KEY} must be "ffmpeg_hybrid" or "remotion_primary"; received "${raw}"`,
+    );
+  }
+
+  return env.NODE_ENV === 'production' ? 'ffmpeg_hybrid' : 'remotion_primary';
+}
 
 function validFps(value: unknown): number | null {
   const fps = typeof value === 'string' ? Number(value) : value;
@@ -185,6 +205,7 @@ export async function runComposeJob(
   const runDir = join(DATA_SHARED_BASE, payload.run_id);
   const composedRaw = join(runDir, 'composed_raw.mp4');
   const composedFinal = join(runDir, 'composed.mp4');
+  const validationReportPath = join(runDir, 'composed.validation.json');
 
   try {
     // ── Step 1: Hydrate brand profile (anon key + user JWT for RLS) ─────────
@@ -265,33 +286,81 @@ export async function runComposeJob(
       })),
     };
 
+    const renderer = resolveRendererSelector();
     onUpdate({ status: 'rendering', manifest });
 
-    // ── Step 5: Remotion render ────────────────────────────────────────────
-    // `publicDir=runDir` exposes the per-run clip directory to the Remotion
-    // bundle so `<Video src={staticFile(filename)}>` resolves correctly.
-    console.log(`[runner] Starting Remotion render for run_id=${payload.run_id}`);
-    await renderComposition({
-      manifest,
-      outputPath: composedRaw,
-      brandProfile,
-      publicDir: runDir,
-      onProgress: (pct) => console.log(`[runner] Render ${pct}%`),
-    });
+    if (renderer === 'ffmpeg_hybrid') {
+      // ── Step 5a: FFmpeg-hybrid render ─────────────────────────────────────
+      console.log(`[runner] Starting FFmpeg hybrid render for run_id=${payload.run_id}`);
+      const timeline = buildTimelineManifest(manifest, {
+        availableClipFilenames: h264ClipPaths.map((p) => basename(p)),
+        outputFilename: basename(composedFinal),
+      });
+      const graphicsPlates = await renderGraphicsPlates({
+        timeline,
+        outputDir: runDir,
+        publicDir: runDir,
+        brandProfile,
+        onProgress: (plate, pct) => console.log(`[runner] Graphics plate ${plate.id} ${pct}%`),
+      });
 
-    // ── Step 6: FFmpeg post-pass ───────────────────────────────────────────
-    onUpdate({ status: 'post_processing' });
-    console.log(`[runner] Running FFmpeg post-processing for run_id=${payload.run_id}`);
-    await applyPostProcessing({
-      inputPath: composedRaw,
+      await renderHybridFfmpeg({
+        timeline,
+        inputDir: runDir,
+        outputPath: composedFinal,
+        graphicsPlates: graphicsPlates.map((plate) => ({
+          clipId: plate.clipId,
+          filename: plate.filename,
+        })),
+      });
+    } else {
+      // ── Step 5b: Remotion-primary rollback render ─────────────────────────
+      // `publicDir=runDir` exposes the per-run clip directory to the Remotion
+      // bundle so `<Video src={staticFile(filename)}>` resolves correctly.
+      console.log(`[runner] Starting Remotion-primary render for run_id=${payload.run_id}`);
+      await renderComposition({
+        manifest,
+        outputPath: composedRaw,
+        brandProfile,
+        publicDir: runDir,
+        onProgress: (pct) => console.log(`[runner] Render ${pct}%`),
+      });
+
+      // ── Step 6: FFmpeg post-pass ─────────────────────────────────────────
+      onUpdate({ status: 'post_processing' });
+      console.log(`[runner] Running FFmpeg post-processing for run_id=${payload.run_id}`);
+      await applyPostProcessing({
+        inputPath: composedRaw,
+        outputPath: composedFinal,
+        audioTargets: brandProfile.audio_targets,
+        targetFps,
+      });
+    }
+
+    // ── Step 7: Validate final render before exposing it to edit-videos ─────
+    onUpdate({ status: 'validating' });
+    console.log(`[runner] Validating final render for run_id=${payload.run_id}`);
+    await validateFinalRender({
       outputPath: composedFinal,
-      audioTargets: brandProfile.audio_targets,
-      targetFps,
+      reportPath: validationReportPath,
+      expected: {
+        width,
+        height,
+        fps: targetFps,
+        durationSeconds: manifest.duration_frames / manifest.fps,
+        requireAudio: true,
+      },
     });
 
-    // ── Step 7: Report done — edit-videos polls and handles upload + webhook ─
-    onUpdate({ status: 'done', final_video_path: composedFinal });
-    console.log(`[runner] Job ${job.id} complete. final_video_path=${composedFinal}`);
+    // ── Step 8: Report done — edit-videos polls and handles upload + webhook ─
+    onUpdate({
+      status: 'done',
+      final_video_path: composedFinal,
+      validation_report_path: validationReportPath,
+    });
+    console.log(
+      `[runner] Job ${job.id} complete. final_video_path=${composedFinal} validation_report_path=${validationReportPath}`,
+    );
   } catch (err) {
     const message = (err as Error).message;
     console.error(`[runner] Job ${job.id} failed: ${message}`);
