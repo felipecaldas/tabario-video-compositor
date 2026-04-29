@@ -5,6 +5,34 @@ import { TemplateRegistry } from '../../templates/registry';
 
 export const testRenderRouter = Router();
 
+function logRequestSummary(
+  route: string,
+  body: {
+    run_id?: string;
+    base_path?: string;
+    platform?: string;
+    manifest_mode?: string;
+    aspect_ratio?: string;
+    target_fps?: number;
+    template_type?: string;
+    manifest?: CompositionManifest;
+    brand_profile?: BrandProfile;
+  },
+): void {
+  console.log(
+    `[testRender] ${route} request: ` +
+      `run_id=${body.run_id ?? '(missing)'}, ` +
+      `base_path=${body.base_path ?? '(default)'}, ` +
+      `platform=${body.platform ?? '(default)'}, ` +
+      `manifest_mode=${body.manifest_mode ?? '(default)'}, ` +
+      `aspect_ratio=${body.aspect_ratio ?? '(auto)'}, ` +
+      `target_fps=${body.target_fps ?? '(auto)'}, ` +
+      `template_type=${body.template_type ?? '(none)'}, ` +
+      `manifest_supplied=${Boolean(body.manifest)}, ` +
+      `brand_profile_supplied=${Boolean(body.brand_profile)}`,
+  );
+}
+
 testRenderRouter.post('/', async (req: Request, res: Response) => {
   const { run_id, client_id, platform, manifest, overrides } = req.body as {
     run_id?: string;
@@ -13,6 +41,8 @@ testRenderRouter.post('/', async (req: Request, res: Response) => {
     manifest?: CompositionManifest;
     overrides?: ManifestOverrides;
   };
+
+  logRequestSummary('/compose/test-render', { run_id, platform, manifest });
 
   if (!run_id || typeof run_id !== 'string') {
     res.status(400).json({ error: 'run_id is required', detail: 'Provide run_id in the request body' });
@@ -59,6 +89,18 @@ testRenderRouter.post('/from-run', async (req: Request, res: Response) => {
     target_fps?: number;
     template_type?: string;
   };
+
+  logRequestSummary('/compose/test-render/from-run', {
+    run_id,
+    base_path,
+    platform,
+    manifest_mode,
+    aspect_ratio,
+    target_fps,
+    template_type,
+    manifest,
+    brand_profile,
+  });
 
   if (!run_id || typeof run_id !== 'string') {
     res.status(400).json({ error: 'run_id is required', detail: 'Provide run_id in the request body' });

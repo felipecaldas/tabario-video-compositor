@@ -114,13 +114,18 @@ describe('GET /compose/:id', () => {
 
   it('returns final_video_path when the runner marks the job done', async () => {
     mockedRunner.runComposeJob.mockImplementation(async (_job, _payload, onUpdate) => {
-      onUpdate({ status: 'done', final_video_path: '/data/shared/run-abc/composed.mp4' });
+      onUpdate({
+        status: 'done',
+        final_video_path: '/data/shared/run-abc/composed.mp4',
+        validation_report_path: '/data/shared/run-abc/composed.validation.json',
+      });
     });
     const submit = await request(makeApp()).post('/compose/start').send(VALID_PAYLOAD);
     await new Promise((r) => setImmediate(r));
     const res = await request(makeApp()).get(`/compose/${submit.body.compose_job_id}`);
     expect(res.body.status).toBe('done');
     expect(res.body.final_video_path).toBe('/data/shared/run-abc/composed.mp4');
+    expect(res.body.validation_report_path).toBe('/data/shared/run-abc/composed.validation.json');
   });
 });
 

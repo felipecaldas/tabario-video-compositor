@@ -93,6 +93,23 @@ export async function probeFps(filePath: string): Promise<number | null> {
   }
 }
 
+export async function probeDurationSeconds(filePath: string): Promise<number | null> {
+  try {
+    const { stdout } = await execFileAsync('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      filePath,
+    ]);
+    const raw = stdout.trim();
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Normalize a video clip for Remotion rendering:
  * - H.264/yuv420p

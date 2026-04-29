@@ -32,7 +32,14 @@ function makeManifest(): CompositionManifest {
     width: 720,
     height: 1280,
     duration_frames: 90,
-    scenes: [],
+    scenes: [
+      {
+        index: 0,
+        clip_filename: 'clip-0.mp4',
+        duration_frames: 90,
+        layout: 'fullscreen',
+      },
+    ],
     transitions: [],
     overlays: [],
     audio_track: {
@@ -55,10 +62,21 @@ function makeBrand(): BrandProfile {
 }
 
 describe('renderComposition', () => {
+  let logSpy: jest.SpyInstance;
+  let errorSpy: jest.SpyInstance;
+
   beforeEach(() => {
+    delete process.env.CHROME_PATH;
     mockBundle.mockReset().mockResolvedValue('file:///bundle-url');
     mockSelect.mockReset().mockResolvedValue({ id: 'TabarioComposition', fps: 30 });
     mockRender.mockReset().mockResolvedValue(undefined);
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 
   it('bundles, selects the composition, then renders in order', async () => {
@@ -81,6 +99,10 @@ describe('renderComposition', () => {
     });
 
     expect(order).toEqual(['bundle', 'select', 'render']);
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[renderer] Manifest summary: run_id=run-abc'));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[renderer] bundle: start'));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[renderer] selectComposition: complete'));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[renderer] renderMedia: complete'));
   });
 
   it('forwards publicDir to bundler when provided', async () => {
@@ -177,8 +199,24 @@ describe('renderComposition', () => {
 
   it('uses headless chromium options', async () => {
     await renderComposition({ manifest: makeManifest(), outputPath: '/tmp/out.mp4' });
+    const selectOpts = mockSelect.mock.calls[0][0];
     const opts = mockRender.mock.calls[0][0];
+    expect(selectOpts.chromiumOptions.headless).toBe(true);
+    expect(selectOpts.chromiumOptions.enableMultiProcessOnLinux).toBe(true);
+    expect(selectOpts.logLevel).toBe('verbose');
     expect(opts.chromiumOptions.headless).toBe(true);
+    expect(opts.chromiumOptions.enableMultiProcessOnLinux).toBe(true);
+    expect(opts.dumpBrowserLogs).toBe(true);
+    expect(opts.logLevel).toBe('verbose');
+  });
+
+  it('forwards CHROME_PATH to selectComposition and renderMedia when set', async () => {
+    process.env.CHROME_PATH = '/usr/bin/chromium';
+    await renderComposition({ manifest: makeManifest(), outputPath: '/tmp/out.mp4' });
+    const selectOpts = mockSelect.mock.calls[0][0];
+    const renderOpts = mockRender.mock.calls[0][0];
+    expect(selectOpts.browserExecutable).toBe('/usr/bin/chromium');
+    expect(renderOpts.browserExecutable).toBe('/usr/bin/chromium');
   });
 
   it('propagates bundler errors unchanged', async () => {
@@ -193,5 +231,15 @@ describe('renderComposition', () => {
     await expect(
       renderComposition({ manifest: makeManifest(), outputPath: '/tmp/out.mp4' }),
     ).rejects.toThrow('render exploded');
+  });
+
+  it('logs the failing stage when selectComposition rejects', async () => {
+    mockSelect.mockReset().mockRejectedValueOnce(new Error('target closed'));
+    await expect(
+      renderComposition({ manifest: makeManifest(), outputPath: '/tmp/out.mp4' }),
+    ).rejects.toThrow('target closed');
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[renderer] selectComposition: failed after'),
+    );
   });
 });
