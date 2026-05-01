@@ -7,7 +7,9 @@ const REMOTION_ROOT = join(__dirname, '../../remotion/index.ts');
 const REMOTION_PROBE_ROOT = join(__dirname, '../../remotion/probe.ts');
 const COMPOSITION_ID = 'TabarioComposition';
 const PROBE_COMPOSITION_ID = 'ProbeComposition';
-const CHROME_PATH = process.env.CHROME_PATH;
+function chromePath(): string | undefined {
+  return process.env.CHROME_PATH;
+}
 
 function summarizeManifest(manifest: CompositionManifest): string {
   return [
@@ -57,8 +59,9 @@ async function runStage<T>(stage: string, action: () => Promise<T>): Promise<T> 
 }
 
 function chromiumLaunchOptions() {
+  const executable = chromePath();
   return {
-    ...(CHROME_PATH ? { browserExecutable: CHROME_PATH } : {}),
+    ...(executable ? { browserExecutable: executable } : {}),
     chromiumOptions: {
       disableWebSecurity: false,
       enableMultiProcessOnLinux: true,
@@ -127,7 +130,7 @@ export async function renderComposition(options: RenderOptions): Promise<void> {
   console.log(
     `[renderer] Runtime: uid=${typeof process.getuid === 'function' ? process.getuid() : 'unknown'}, ` +
       `gid=${typeof process.getgid === 'function' ? process.getgid() : 'unknown'}, ` +
-      `chromePath=${CHROME_PATH ?? '(default)'}`,
+      `chromePath=${chromePath() ?? '(default)'}`,
   );
 
   // Merge brandProfile into inputProps so BrandProvider is fully populated
@@ -165,7 +168,7 @@ export async function renderComposition(options: RenderOptions): Promise<void> {
   console.log(
     `[renderer] Chromium options: headless=true, disableWebSecurity=false, ` +
       `enableMultiProcessOnLinux=true, serveUrl=${bundleLocation}, compositionId=${COMPOSITION_ID}, ` +
-      `browserExecutable=${CHROME_PATH ?? '(default)'}`,
+      `browserExecutable=${chromePath() ?? '(default)'}`,
   );
   console.log('[renderer] Encoding mode: sequential (disallowParallelEncoding=true)');
   await runStage('renderMedia', () =>
@@ -175,7 +178,7 @@ export async function renderComposition(options: RenderOptions): Promise<void> {
       codec: 'h264',
       outputLocation: outputPath,
       inputProps,
-      ...(CHROME_PATH ? { browserExecutable: CHROME_PATH } : {}),
+      ...(chromePath() ? { browserExecutable: chromePath() } : {}),
       disallowParallelEncoding: true,
       dumpBrowserLogs: true,
       logLevel: 'verbose',

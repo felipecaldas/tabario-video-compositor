@@ -41,10 +41,5 @@
     { "role": "presenter_clip", "type": "clip", "required": true, "description": "Talking head of the thought leader" },
     { "role": "supporting_clips", "type": "clip", "required": false, "description": "B-roll to illustrate the argument" },
     { "role": "voiceover", "type": "voiceover", "required": true }
-  ],
-  "closing": {
-    "component": "end_card",
-    "duration_s": 3,
-    "cta_role": "follow_or_read_more"
-  }
+  ]
 }

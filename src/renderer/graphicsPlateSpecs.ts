@@ -20,9 +20,13 @@ export interface BuildGraphicsPlateSpecsOptions {
 
 export function buildGraphicsPlateSpecs(options: BuildGraphicsPlateSpecsOptions): GraphicsPlateSpec[] {
   const graphicsSpecs = options.timeline.tracks.graphics.map((clip) => plateSpecForGraphicsClip(options, clip));
-  const captionSpec = options.timeline.captions
-    ? [plateSpecForCaptions(options)]
-    : [];
+  // Only emit a caption plate when we actually have words to render. An empty
+  // caption track would otherwise produce a full-frame transparent plate that
+  // costs a Chromium render and adds an unnecessary overlay pass.
+  const hasCaptionWords = Boolean(
+    options.timeline.captions && options.timeline.captions.words.length > 0,
+  );
+  const captionSpec = hasCaptionWords ? [plateSpecForCaptions(options)] : [];
 
   return [...graphicsSpecs, ...captionSpec];
 }

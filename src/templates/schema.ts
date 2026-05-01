@@ -54,7 +54,7 @@ export const UseCaseTemplateSchema = z.object({
   description: z.string(),
   scene_blueprint: z.array(SceneSlotSchema).min(1),
   required_assets: z.array(AssetRequirementSchema),
-  closing: ClosingShapeSchema,
+  closing: ClosingShapeSchema.optional(),
   /** Prescribed transition types per role boundary — used by buildTemplateManifest and the LLM prompt. */
   default_transitions: z.array(DefaultTransitionSchema).optional(),
   /** Default CSS grade applied per scene role in stub/test renders. */

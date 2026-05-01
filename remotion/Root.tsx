@@ -85,17 +85,33 @@ export const RemotionRoot: React.FC = () => (
       fps={30}
       width={1080}
       height={1920}
+      // CRITICAL: declare every prop key the component accepts here.
+      // Remotion v4 only forwards inputProps keys that exist in defaultProps;
+      // keys missing from defaultProps are silently dropped during the
+      // bundle/serve handshake, leaving the component with default values.
       defaultProps={{
         timeline: DEFAULT_GRAPHICS_TIMELINE,
-      } as GraphicsPlateCompositionProps}
+        clip: null,
+        plateType: 'graphics_clip',
+        brandProfile: null,
+      } as unknown as GraphicsPlateCompositionProps}
       calculateMetadata={async ({ props }) => {
-        const timeline = (props as GraphicsPlateCompositionProps).timeline as TimelineManifest;
-        const clip = (props as GraphicsPlateCompositionProps).clip;
+        const typed = props as GraphicsPlateCompositionProps;
+        const timeline = typed.timeline as TimelineManifest;
+        const clip = typed.clip;
         return {
           durationInFrames: clip?.duration_frames ?? timeline.duration_frames ?? 300,
           fps: timeline.fps ?? 30,
           width: timeline.width ?? 1080,
           height: timeline.height ?? 1920,
+          // CRITICAL: explicitly return the resolved props back. In Remotion v4
+          // the renderer uses the props returned from calculateMetadata for the
+          // composition; omitting this field causes the browser-side component
+          // to fall back to defaultProps (durations are still correct because
+          // they come from the metadata fields above, but timeline/clip/etc.
+          // arrive as their defaults). This was the root cause of caption
+          // plates rendering as blank ProRes 4444 alpha frames.
+          props: typed,
         };
       }}
     />

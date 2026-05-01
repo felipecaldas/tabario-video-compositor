@@ -105,6 +105,21 @@ export function buildHybridFfmpegArgs(options: HybridFfmpegRenderOptions): strin
 export async function renderHybridFfmpeg(options: HybridFfmpegRenderOptions): Promise<void> {
   const args = buildHybridFfmpegArgs(options);
 
+  // KB rule #5: log the actual assets and the FFmpeg filter graph so render
+  // failures and silent black-frame regressions can be diagnosed from logs.
+  const filterIdx = args.indexOf('-filter_complex');
+  const filterComplex = filterIdx >= 0 ? args[filterIdx + 1] : '(none)';
+  const inputPaths = args
+    .map((arg, idx) => (arg === '-i' ? args[idx + 1] : null))
+    .filter((p): p is string => Boolean(p));
+  console.log(`[ffmpeg-hybrid] inputs (${inputPaths.length}): ${inputPaths.join(' | ')}`);
+  console.log(
+    `[ffmpeg-hybrid] graphicsPlates: ${(options.graphicsPlates ?? [])
+      .map((p) => `${p.clipId}:${p.filename}`)
+      .join(', ') || '(none)'}`,
+  );
+  console.log(`[ffmpeg-hybrid] filter_complex: ${filterComplex}`);
+
   try {
     const { stderr } = await execFileAsync('ffmpeg', args);
     if (stderr) {

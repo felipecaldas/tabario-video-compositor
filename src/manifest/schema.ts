@@ -83,7 +83,7 @@ export const CompositionManifestSchema = z.object({
     show_logo: z.boolean(),
     start_frame: z.number().int().min(0),
     duration_frames: z.number().int().positive(),
-  }),
+  }).optional(),
   narrative_arcs: z.array(
     z.object({
       range: z.tuple([z.number().int(), z.number().int()]),

@@ -274,6 +274,128 @@ For render debugging, the high-value logs are:
 - timeline track counts
 - FFmpeg command/filter graph for hybrid output
 
+## Graphics Plate Rendering (ProRes 4444 + alpha)
+
+Graphics plates are rendered by Remotion as standalone `.mov` files and composited later by FFmpeg. Getting transparency to actually survive that pipeline took several iterations.
+
+### Pin both pixel format and image format
+
+ProRes 4444 alone is not enough. Remotion / FFmpeg can resolve `prores_ks` to `yuv422p10le`, which has no alpha channel. The result is an opaque plate that paints black over the underlying video when overlaid.
+
+Rule:
+
+- set `codec: 'prores'` and `proResProfile: '4444'`
+- pin `pixelFormat: 'yuva444p10le'` so alpha is preserved
+- pin `imageFormat: 'png'` because Remotion's default JPEG frames have no alpha and the renderer will reject the `yuva444p10le` + JPEG combination with:
+  `Pixel format was set to 'yuva444p10le' but the image format is not PNG`
+
+All three settings are load-bearing. Dropping any one of them produces either an opaque plate or a hard render failure.
+
+### Symptom-to-cause map for plate transparency
+
+- final video is fully black where a plate overlays: plate was rendered without alpha (likely `yuv422p10le`)
+- render fails immediately on plate stage with the pixel-format/PNG error: `pixelFormat` was pinned without switching `imageFormat` to PNG
+- plate file is unexpectedly small or zero bytes: composition probably crashed during evaluation, not a pixel-format issue — check `selectComposition` and composition defaults first
+
+### `calculateMetadata` must return `props` to forward inputProps to the component
+
+Remotion v4's `Composition.calculateMetadata` is the canonical place where the
+final resolved props for a render are produced. Returning only metadata fields
+(`durationInFrames`, `fps`, `width`, `height`) is enough for the metadata to
+look right, but the **component itself will then receive `defaultProps`** —
+not the merged inputProps — when the bundle is served to Chromium for
+rendering.
+
+Symptom we hit on the caption plate:
+
+- `selectComposition` resolved durations correctly (so `calculateMetadata` was
+  clearly seeing inputProps)
+- the rendered ProRes 4444 plate was fully transparent
+- a debug banner inside the component reported `plateType=graphics_clip`,
+  `captions=undefined`, `words=0` — i.e. the static defaults from `Root.tsx`
+
+Rule:
+
+- in any `calculateMetadata` for a Remotion `Composition`, return
+  `props: <merged props>` alongside the duration/fps/width/height fields
+- treat omitting `props` as a bug, even when "it looks like it works" because
+  the metadata happens to be correct
+- declare every key the component reads in `defaultProps` too — Remotion will
+  not forward inputProps keys that are not present in defaultProps, and use
+  `null` (not `undefined`) for absent values so the field survives JSON
+  serialization
+
+### `publicDir` is a copy source — keep it free of render outputs
+
+Remotion's `bundle({ publicDir })` enumerates the directory and copies every
+entry into `<bundle>/public/` so the composition can resolve them through
+`staticFile()`. The copy is best-effort: if a file disappears between the
+directory listing and the actual `copyFile()`, the bundler aborts with:
+
+```
+ENOENT: no such file or directory, copyfile '/data/shared/<run>/test_render.mp4'
+  -> '/tmp/remotion-webpack-bundle-XXXX/public/test_render.mp4'
+```
+
+That happened to us because the run directory doubled as both `publicDir`
+(input clips) and the destination of `outputPath` (`test_render.mp4`,
+`caption-track.mov`, `graphics-*.mov`). A previous render's leftovers were
+still in the directory and any concurrent FS activity (or the next render
+overwriting them) raced the bundler's copy.
+
+Rules:
+
+- treat `publicDir` as **inputs only** — never let render outputs land there
+  if it can be avoided
+- if you must reuse the same directory for inputs and outputs, explicitly
+  delete prior outputs before the next bundle (see
+  `cleanupStaleRenderArtifacts` in `testRenderService`)
+- the cleanup must run before any code path that calls `bundle()`, not just
+  before the final ffmpeg encode
+
+### Diagnostic methodology that actually worked
+
+Three days of false leads were avoided once we adopted these practices:
+
+1. **Render a visible debug banner inside the composition.** A `<div>` with
+   a bright background and the prop values stringified into its text is a
+   reliable way to see whether the component received what you think it
+   received. `console.log` from inside the composition is **unreliable** —
+   Remotion's `onBrowserLog` forwards browser-level errors (favicon 404s,
+   network errors) but does not always forward custom `console.log` /
+   `console.error` from the React render. Pixels never lie.
+2. **Read plate frames directly with ffmpeg.** A 16-byte transparent plate
+   and a 116-byte plate-with-banner produce very different PNG sizes; size
+   alone is a fast triage signal.
+3. **Compare two compositions side-by-side.** When the caption plate broke
+   but the end-card plate still worked, comparing the two paths through
+   the same composition revealed exactly which inputProps reached the
+   browser and which did not.
+4. **Suspect deployed-image drift before re-debugging the code.** If a fix
+   that should land doesn't change behavior, verify the running container
+   actually contains the new file — `docker exec ... grep` against the
+   bundle/`/app` is faster than reasoning about the change. `docker compose
+   build --no-cache` is the hammer when layer caching makes Docker pick up
+   stale `dist/`.
+
+### Don't render empty caption plates
+
+A caption track with zero words still produces a full-frame transparent `.mov` if you let it. That costs a Chromium render per job and adds an unnecessary FFmpeg overlay pass.
+
+Rule:
+
+- only emit a caption plate spec when `timeline.captions.words.length > 0`
+- the same principle applies to any optional plate type: skip the spec when there is nothing to draw
+
+### Deployed-container drift is a real failure mode
+
+We hit the `yuva444p10le` + JPEG error on the test API after the fix was already in source. Cause: the running Docker image predated the fix.
+
+Rule:
+
+- when a render error matches a bug we already fixed in source, suspect the deployed image before re-debugging the code
+- include the compositor build/deploy step in the verification checklist for any renderer change
+
 ## Next Improvements
 
 The next quality steps should be:

@@ -222,14 +222,16 @@ export function buildTimelineManifest(
           props: overlay.props,
           render_mode: 'transparent_plate' as const,
         })),
-        {
-          id: 'graphics:closing:end_card',
-          component: manifest.closing.component,
-          start_frame: manifest.closing.start_frame,
-          duration_frames: manifest.closing.duration_frames,
-          props: manifest.closing,
-          render_mode: 'transparent_plate' as const,
-        },
+        ...(manifest.closing
+          ? [{
+            id: 'graphics:closing:end_card',
+            component: manifest.closing.component,
+            start_frame: manifest.closing.start_frame,
+            duration_frames: manifest.closing.duration_frames,
+            props: manifest.closing,
+            render_mode: 'transparent_plate' as const,
+          }]
+          : []),
       ],
     },
     transitions: manifest.transitions.flatMap((transition, index) => {

@@ -14,6 +14,8 @@ export interface HandoffPayload {
   video_idea_id?: string;
   workflow_id?: string;
   user_access_token: string;
+  /** When false, skip voiceover transcription and caption_track generation. */
+  generate_captions?: boolean;
   /** Requested EditStyle — resolved by StyleRegistry; defaults to 'corporate_clean'. */
   style_id?: StyleId;
   /** Requested use-case template — resolved by TemplateRegistry. */
@@ -178,7 +180,7 @@ export interface CompositionManifest {
   transitions: ManifestTransition[];
   overlays: ManifestOverlay[];
   audio_track: AudioTrack;
-  closing: ClosingSpec;
+  closing?: ClosingSpec;
   narrative_arcs?: NarrativeArc[];
   caption_track?: CaptionTrack;
 }
@@ -265,6 +267,7 @@ export interface ComposeJob {
   manifest?: CompositionManifest;
   final_video_path?: string;
   validation_report_path?: string;
+  engagement_report_path?: string;
   output_url?: string;
   error?: string;
   created_at: Date;

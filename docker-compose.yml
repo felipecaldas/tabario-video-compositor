@@ -4,6 +4,7 @@ services:
   tabario-video-compositor:
     build: .
     container_name: tabario-video-compositor
+    shm_size: "1gb"
     ports:
       - "9312:9312"
     volumes:

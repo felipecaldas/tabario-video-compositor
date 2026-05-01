@@ -32,6 +32,8 @@ const VALID_PAYLOAD = {
   video_format: '9:16',
   target_resolution: '720p',
   user_access_token: 'jwt-abc',
+  use_case: 'ad',
+  generate_captions: true,
 };
 
 describe('POST /compose/start', () => {
@@ -73,6 +75,8 @@ describe('POST /compose/start', () => {
     const [, payloadArg] = mockedRunner.runComposeJob.mock.calls[0];
     expect(payloadArg.run_id).toBe('run-abc');
     expect(payloadArg.client_id).toBe('client-1');
+    expect(payloadArg.use_case).toBe('ad');
+    expect(payloadArg.generate_captions).toBe(true);
   });
 
   it('captures runner exceptions into the job store without bubbling', async () => {
@@ -118,6 +122,7 @@ describe('GET /compose/:id', () => {
         status: 'done',
         final_video_path: '/data/shared/run-abc/composed.mp4',
         validation_report_path: '/data/shared/run-abc/composed.validation.json',
+        engagement_report_path: '/data/shared/run-abc/engagement.validation.json',
       });
     });
     const submit = await request(makeApp()).post('/compose/start').send(VALID_PAYLOAD);
@@ -126,6 +131,7 @@ describe('GET /compose/:id', () => {
     expect(res.body.status).toBe('done');
     expect(res.body.final_video_path).toBe('/data/shared/run-abc/composed.mp4');
     expect(res.body.validation_report_path).toBe('/data/shared/run-abc/composed.validation.json');
+    expect(res.body.engagement_report_path).toBe('/data/shared/run-abc/engagement.validation.json');
   });
 });
 

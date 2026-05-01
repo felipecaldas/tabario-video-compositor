@@ -1,9 +1,10 @@
-import { readdirSync, existsSync, readFileSync, statSync } from 'fs';
+import { readdirSync, existsSync, readFileSync, statSync, unlinkSync } from 'fs';
 import { basename, join } from 'path';
 import {
   CompositionManifest, BrandProfile, TransitionType, Brief,
   LayoutType, TalkingHeadLayout,
 } from '../types';
+import { transcribe } from '../asr/transcribe';
 import { CompositionManifestSchema } from '../manifest/schema';
 import { renderComposition } from '../renderer/renderWorker';
 import { ensureH264, probeDurationSeconds, probeFps } from '../postprocess/ffmpeg';
@@ -292,7 +293,7 @@ export function buildTemplateManifest(
     };
   });
 
-  const closingDuration = fps * 3;
+  const closingDuration = template.closing ? fps * 3 : 0;
 
   const raw = {
     schema: 'compose.v2' as const,
@@ -313,17 +314,21 @@ export function buildTemplateManifest(
       lufs_target: -16,
       music_ducking_db: -12,
     },
-    closing: {
-      component: 'end_card' as const,
-      cta: {
-        text: template.closing.cta_role.replace(/_/g, ' '),
-        url: 'https://tabario.com',
-        show_qr: false,
-      },
-      show_logo: true,
-      start_frame: accFrame,
-      duration_frames: closingDuration,
-    },
+    ...(template.closing
+      ? {
+        closing: {
+          component: 'end_card' as const,
+          cta: {
+            text: template.closing.cta_role.replace(/_/g, ' '),
+            url: 'https://tabario.com',
+            show_qr: false,
+          },
+          show_logo: true,
+          start_frame: accFrame,
+          duration_frames: closingDuration,
+        },
+      }
+      : {}),
   };
 
   const result = CompositionManifestSchema.safeParse(raw);
@@ -441,6 +446,7 @@ export async function runTestRender(options: TestRenderOptions): Promise<{ outpu
   );
   console.log(`[testRender] Final manifest summary: ${summarizeManifest(manifest)}, outputPath=${outputPath}`);
 
+  cleanupStaleRenderArtifacts(runDir, outputPath);
   const start = Date.now();
   await renderWithSelectedRenderer({
     manifest,
@@ -549,14 +555,19 @@ async function extendManifestToVoiceover(
       `manifestFrames=${manifest.duration_frames}, extensionFrames=${extensionFrames}`,
   );
 
-  return {
-    ...manifest,
-    duration_frames: requiredDurationFrames,
-    closing: {
-      ...manifest.closing,
-      duration_frames: manifest.closing.duration_frames + extensionFrames,
-    },
-  };
+  return manifest.closing
+    ? {
+      ...manifest,
+      duration_frames: requiredDurationFrames,
+      closing: {
+        ...manifest.closing,
+        duration_frames: manifest.closing.duration_frames + extensionFrames,
+      },
+    }
+    : {
+      ...manifest,
+      duration_frames: requiredDurationFrames,
+    };
 }
 
 async function renderWithSelectedRenderer(options: {
@@ -627,6 +638,8 @@ export interface RunTestRenderOptions {
   targetFps?: number;
   /** Use a UseCaseTemplate to build the stub manifest instead of the flat layout. */
   templateType?: string;
+  /** When true, transcribe the voiceover and attach a caption_track to the manifest. */
+  generateCaptions?: boolean;
 }
 
 export async function runTestRenderFromRun(
@@ -643,6 +656,7 @@ export async function runTestRenderFromRun(
     brandProfile: providedBrandProfile,
     targetFps,
     templateType,
+    generateCaptions,
   } = options;
 
   const runDir = join(basePath ?? DATA_SHARED_BASE, runId);
@@ -730,6 +744,21 @@ export async function runTestRenderFromRun(
     );
   }
 
+  // Attach word-level captions when requested
+  if (generateCaptions && voiceoverFilename) {
+    const voiceoverPath = join(runDir, voiceoverFilename);
+    try {
+      console.log(`[testRender] Transcribing voiceover for run_id=${runId} (fps=${manifest.fps})`);
+      const captionTrack = await transcribe(voiceoverPath, { fps: manifest.fps });
+      manifest = { ...manifest, caption_track: captionTrack };
+      console.log(`[testRender] Caption track attached: ${captionTrack.words.length} words`);
+    } catch (err) {
+      console.warn(
+        `[testRender] Voiceover transcription failed for run_id=${runId}; continuing without captions: ${(err as Error).message}`,
+      );
+    }
+  }
+
   // Patch manifest to use normalized clip filenames (relative paths only for staticFile)
   manifest = buildManifestWithNormalizedClips(manifest, normalizedPaths);
 
@@ -755,6 +784,12 @@ export async function runTestRenderFromRun(
       `client_id=${clientId ?? '(from run manifest)'}, brandProfileClientId=${effectiveBrandProfile.client_id}`,
   );
   console.log(`[testRender] Final manifest summary: ${summarizeManifest(manifest)}, outputPath=${outputPath}`);
+  // Remotion's `bundle({ publicDir })` enumerates the directory and copies
+  // every file into its webpack public folder. Stale render artifacts (the
+  // previous final mp4, partial graphics plates, ...) break that copy with
+  // ENOENT when something deletes/recreates them concurrently. Strip them
+  // before bundling so only inputs remain in publicDir.
+  cleanupStaleRenderArtifacts(runDir, outputPath);
   const start = Date.now();
   await renderWithSelectedRenderer({
     manifest,
@@ -767,4 +802,41 @@ export async function runTestRenderFromRun(
 
   console.log(`[testRender] Render complete: ${outputPath} (${durationMs}ms, ${outputBytes} bytes)`);
   return { outputPath, durationMs };
+}
+
+/**
+ * Remove output artifacts produced by previous renders from the run directory.
+ * The Remotion bundler treats `publicDir` as a static-asset source and copies
+ * every entry; a stale `test_render.mp4` or `*-track.mov` plate that gets
+ * touched during the copy raises ENOENT and aborts the render.
+ */
+function cleanupStaleRenderArtifacts(runDir: string, outputPath: string): void {
+  const removed: string[] = [];
+  const tryRemove = (filePath: string): void => {
+    if (existsSync(filePath)) {
+      try {
+        unlinkSync(filePath);
+        removed.push(basename(filePath));
+      } catch (err) {
+        console.warn(
+          `[testRender] cleanupStaleRenderArtifacts: failed to remove ${filePath}: ` +
+            `${(err as Error).message}`,
+        );
+      }
+    }
+  };
+  tryRemove(outputPath);
+  // Plates produced by previous test runs.
+  for (const entry of readdirSync(runDir)) {
+    if (entry === basename(outputPath)) continue;
+    if (
+      entry === 'caption-track.mov' ||
+      entry.startsWith('graphics-') && entry.endsWith('.mov')
+    ) {
+      tryRemove(join(runDir, entry));
+    }
+  }
+  if (removed.length > 0) {
+    console.log(`[testRender] Removed stale render artifacts: ${removed.join(', ')}`);
+  }
 }

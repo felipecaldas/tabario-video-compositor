@@ -1,6 +1,8 @@
+import { mkdirSync, writeFileSync } from 'fs';
 import { join, basename } from 'path';
 import { hydrateBrandProfile } from './brand/hydrator';
 import { generateManifest } from './manifest/generator';
+import { normalizeAdManifest } from './manifest/adEngagement';
 import { renderComposition } from './renderer/renderWorker';
 import { validateFinalRender } from './renderer/finalValidation';
 import { renderHybridFfmpeg } from './renderer/ffmpegHybrid';
@@ -13,7 +15,7 @@ import { ComposeJob, HandoffPayload, Brief, BriefScene, ManifestScene, PlatformB
 const DATA_SHARED_BASE = process.env.DATA_SHARED_BASE ?? '/data/shared';
 const RENDERER_ENV_KEY = 'VIDEO_COMPOSITOR_RENDERER';
 
-type JobUpdate = Partial<Pick<ComposeJob, 'status' | 'manifest' | 'final_video_path' | 'validation_report_path' | 'error'>>;
+type JobUpdate = Partial<Pick<ComposeJob, 'status' | 'manifest' | 'final_video_path' | 'validation_report_path' | 'engagement_report_path' | 'error'>>;
 export type RendererSelector = 'ffmpeg_hybrid' | 'remotion_primary';
 
 /**
@@ -39,7 +41,11 @@ export function resolveRendererSelector(env: NodeJS.ProcessEnv = process.env): R
     );
   }
 
-  return env.NODE_ENV === 'production' ? 'ffmpeg_hybrid' : 'remotion_primary';
+  // Always default to ffmpeg_hybrid regardless of NODE_ENV. The remotion_primary
+  // path is being decommissioned and remains available only as an explicit
+  // opt-in via the RENDERER env var. This guarantees test endpoints exercise
+  // the same renderer as production (KB rule #2: primary-path parity in tests).
+  return 'ffmpeg_hybrid';
 }
 
 function validFps(value: unknown): number | null {
@@ -92,11 +98,15 @@ export function enforceManifestFps(
       start_frame: Math.max(0, Math.round((overlay.start_frame * targetFps) / sourceFps)),
       duration_frames: scaleFrames(overlay.duration_frames, sourceFps, targetFps),
     })),
-    closing: {
-      ...manifest.closing,
-      start_frame: Math.max(0, Math.round((manifest.closing.start_frame * targetFps) / sourceFps)),
-      duration_frames: scaleFrames(manifest.closing.duration_frames, sourceFps, targetFps),
-    },
+    ...(manifest.closing
+      ? {
+        closing: {
+          ...manifest.closing,
+          start_frame: Math.max(0, Math.round((manifest.closing.start_frame * targetFps) / sourceFps)),
+          duration_frames: scaleFrames(manifest.closing.duration_frames, sourceFps, targetFps),
+        },
+      }
+      : {}),
   };
 }
 
@@ -206,6 +216,7 @@ export async function runComposeJob(
   const composedRaw = join(runDir, 'composed_raw.mp4');
   const composedFinal = join(runDir, 'composed.mp4');
   const validationReportPath = join(runDir, 'composed.validation.json');
+  const engagementReportPath = join(runDir, 'engagement.validation.json');
 
   try {
     // ── Step 1: Hydrate brand profile (anon key + user JWT for RLS) ─────────
@@ -235,8 +246,25 @@ export async function runComposeJob(
       clip_filenames: clipFilenames,
       voiceover_filename: voiceoverFilename,
       target_fps: targetFps,
+      use_case: payload.use_case,
     });
     manifest = enforceManifestFps(manifest, targetFps);
+    manifest = {
+      ...manifest,
+      ...(payload.use_case ? { use_case: payload.use_case } : {}),
+      ...(payload.style_id ? { style_id: payload.style_id } : {}),
+    };
+
+    const normalizedAd = normalizeAdManifest(manifest, flatBrief, brandProfile);
+    manifest = normalizedAd.manifest;
+    try {
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(engagementReportPath, JSON.stringify(normalizedAd.report, null, 2), 'utf-8');
+    } catch (err) {
+      console.warn(
+        `[runner] Failed to write engagement report for run_id=${payload.run_id}: ${(err as Error).message}`,
+      );
+    }
 
     // ── Step 4: Enforce video_format + target_resolution overrides ──────────
     const { width, height } = resolveCanonicalDimensions(
@@ -250,14 +278,16 @@ export async function runComposeJob(
     manifest = { ...manifest, fps: targetFps, width, height };
 
     // ── Step 4.25: Generate word-level captions when transcription is available
-    try {
-      console.log(`[runner] Transcribing voiceover for run_id=${payload.run_id} (target FPS: ${manifest.fps})`);
-      const captionTrack = await transcribe(payload.voiceover_path, { fps: manifest.fps });
-      manifest = { ...manifest, caption_track: captionTrack };
-    } catch (err) {
-      console.warn(
-        `[runner] Voiceover transcription failed for run_id=${payload.run_id}; continuing without captions: ${(err as Error).message}`,
-      );
+    if (payload.generate_captions !== false) {
+      try {
+        console.log(`[runner] Transcribing voiceover for run_id=${payload.run_id} (target FPS: ${manifest.fps})`);
+        const captionTrack = await transcribe(payload.voiceover_path, { fps: manifest.fps });
+        manifest = { ...manifest, caption_track: captionTrack };
+      } catch (err) {
+        console.warn(
+          `[runner] Voiceover transcription failed for run_id=${payload.run_id}; continuing without captions: ${(err as Error).message}`,
+        );
+      }
     }
 
     // ── Step 4.5: Transcode clips to H.264 for browser compatibility ────────
@@ -357,9 +387,10 @@ export async function runComposeJob(
       status: 'done',
       final_video_path: composedFinal,
       validation_report_path: validationReportPath,
+      engagement_report_path: engagementReportPath,
     });
     console.log(
-      `[runner] Job ${job.id} complete. final_video_path=${composedFinal} validation_report_path=${validationReportPath}`,
+      `[runner] Job ${job.id} complete. final_video_path=${composedFinal} validation_report_path=${validationReportPath} engagement_report_path=${engagementReportPath}`,
     );
   } catch (err) {
     const message = (err as Error).message;

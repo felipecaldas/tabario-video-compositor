@@ -18,9 +18,13 @@ const HandoffPayloadSchema = z.object({
   clip_paths: z.array(z.string()).min(1),
   video_format: z.string().default('mp4'),
   target_resolution: z.string().default('1080x1920'),
+  target_fps: z.number().int().positive().optional(),
   video_idea_id: z.string().optional(),
   workflow_id: z.string().optional(),
   user_access_token: z.string().min(1, 'user_access_token is required'),
+  generate_captions: z.boolean().optional(),
+  style_id: z.string().optional(),
+  use_case: z.string().optional(),
 });
 
 /** POST /compose/start — Accept handoff from edit-videos, enqueue compose job */
@@ -70,6 +74,7 @@ composeRouter.get('/:id', (req: Request, res: Response) => {
     status: job.status,
     final_video_path: job.final_video_path,
     validation_report_path: job.validation_report_path,
+    engagement_report_path: job.engagement_report_path,
     output_url: job.output_url,
     error: job.error,
     created_at: job.created_at,

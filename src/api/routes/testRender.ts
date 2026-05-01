@@ -77,6 +77,7 @@ testRenderRouter.post('/from-run', async (req: Request, res: Response) => {
     brand_profile,
     target_fps,
     template_type,
+    generate_captions,
   } = req.body as {
     run_id?: string;
     client_id?: string;
@@ -88,6 +89,7 @@ testRenderRouter.post('/from-run', async (req: Request, res: Response) => {
     brand_profile?: BrandProfile;
     target_fps?: number;
     template_type?: string;
+    generate_captions?: boolean;
   };
 
   logRequestSummary('/compose/test-render/from-run', {
@@ -101,6 +103,10 @@ testRenderRouter.post('/from-run', async (req: Request, res: Response) => {
     manifest,
     brand_profile,
   });
+
+  if (generate_captions !== undefined) {
+    console.log(`[testRender] generate_captions=${generate_captions}`);
+  }
 
   if (!run_id || typeof run_id !== 'string') {
     res.status(400).json({ error: 'run_id is required', detail: 'Provide run_id in the request body' });
@@ -128,6 +134,7 @@ testRenderRouter.post('/from-run', async (req: Request, res: Response) => {
       brandProfile: brand_profile,
       targetFps: target_fps,
       templateType: template_type,
+      generateCaptions: generate_captions,
     });
     res.json(result);
   } catch (err: unknown) {

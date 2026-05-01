@@ -49,8 +49,9 @@ describe('buildStubManifest', () => {
     const clips = makeClips(3);
     const manifest = buildStubManifest(clips, 'tiktok', 'run-1', 'client-1');
     const sceneDuration = manifest.scenes.reduce((s, sc) => s + sc.duration_frames, 0);
-    expect(manifest.duration_frames).toBe(sceneDuration + manifest.closing.duration_frames);
-    expect(manifest.closing.start_frame).toBe(sceneDuration);
+    const closing = manifest.closing!;
+    expect(manifest.duration_frames).toBe(sceneDuration + closing.duration_frames);
+    expect(closing.start_frame).toBe(sceneDuration);
   });
 });
 
@@ -115,8 +116,18 @@ describe('buildTemplateManifest', () => {
   it('total duration = sum of scenes + closing', () => {
     const manifest = buildTemplateManifest('property_tour', makeClipsN(5), 'tiktok', 'run-1', 'client-1');
     const scenesTotal = manifest.scenes.reduce((s, sc) => s + sc.duration_frames, 0);
-    expect(manifest.duration_frames).toBe(scenesTotal + manifest.closing.duration_frames);
-    expect(manifest.closing.start_frame).toBe(scenesTotal);
+    expect(manifest.closing).toBeDefined();
+    const closing = manifest.closing!;
+    expect(manifest.duration_frames).toBe(scenesTotal + closing.duration_frames);
+    expect(closing.start_frame).toBe(scenesTotal);
+  });
+
+  it('omits closing end_card for thought leadership', () => {
+    const manifest = buildTemplateManifest('thought_leadership', makeClipsN(5), 'tiktok', 'run-1', 'client-1');
+    const scenesTotal = manifest.scenes.reduce((s, sc) => s + sc.duration_frames, 0);
+
+    expect(manifest.closing).toBeUndefined();
+    expect(manifest.duration_frames).toBe(scenesTotal);
   });
 
   it('works with minimal 1 clip (cycles as needed)', () => {

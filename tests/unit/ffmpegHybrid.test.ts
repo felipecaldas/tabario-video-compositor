@@ -155,7 +155,8 @@ describe('buildHybridFfmpegArgs', () => {
     expect(filter).toContain('[1:v]trim=start=0.5:duration=3');
     expect(filter).toContain('scale=720:1280:force_original_aspect_ratio=increase');
     expect(filter).toContain('[scene0base][scene0v0]overlay=x=0:y=0:eof_action=pass[scene0]');
-    expect(filter).toContain('[scene0][scene1]concat=n=2:v=1:a=0[basev]');
+    expect(filter).toContain('[scene0][scene1]concat=n=2:v=1:a=0[stitched1]');
+    expect(filter).toContain('[stitched1]copy[basev]');
   });
 
   it('mixes delayed audio clips and applies music gain', () => {

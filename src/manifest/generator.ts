@@ -31,6 +31,7 @@ export interface ManifestGeneratorInput {
   clip_filenames: string[];
   voiceover_filename: string;
   target_fps?: number;
+  use_case?: string;
 }
 
 /**
@@ -50,6 +51,7 @@ export async function generateManifest(input: ManifestGeneratorInput): Promise<C
     clip_filenames: input.clip_filenames,
     voiceover_filename: input.voiceover_filename,
     target_fps: input.target_fps,
+    use_case: input.use_case,
   }, null, 2);
 
   let lastError: Error | null = null;

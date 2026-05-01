@@ -86,20 +86,26 @@ function manifestForTemplate(templateId: string): CompositionManifest {
     };
   });
 
+  const closingDuration = template.closing ? Math.round(template.closing.duration_s * fps) : 0;
+
   return baseManifest({
     use_case: templateId,
     fps,
-    duration_frames: cursor + Math.round(template.closing.duration_s * fps),
+    duration_frames: cursor + closingDuration,
     scenes,
     transitions: [],
     overlays: [],
-    closing: {
-      component: 'end_card',
-      cta: { text: template.closing.cta_role },
-      show_logo: true,
-      start_frame: cursor,
-      duration_frames: Math.round(template.closing.duration_s * fps),
-    },
+    ...(template.closing
+      ? {
+        closing: {
+          component: 'end_card' as const,
+          cta: { text: template.closing.cta_role },
+          show_logo: true,
+          start_frame: cursor,
+          duration_frames: closingDuration,
+        },
+      }
+      : { closing: undefined }),
   });
 }
 
@@ -196,7 +202,9 @@ describe('TimelineManifest', () => {
       expect(result.success).toBe(true);
       expect(timeline.use_case).toBe(template.id);
       expect(timeline.tracks.video).toHaveLength(template.scene_blueprint.length);
-      expect(timeline.tracks.graphics.some((clip) => clip.component === 'end_card')).toBe(true);
+      expect(timeline.tracks.graphics.some((clip) => clip.component === 'end_card')).toBe(
+        template.id !== 'thought_leadership',
+      );
       expect(filter).toContain(`color=c=black:s=${timeline.width}x${timeline.height}`);
       expect(args).toEqual(expect.arrayContaining(['-map', '[basev]']));
     });

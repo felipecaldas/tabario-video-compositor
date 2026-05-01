@@ -145,7 +145,7 @@ function makeManifest(): CompositionManifest {
 
 describe('runComposeJob', () => {
   beforeEach(() => {
-    delete process.env.VIDEO_COMPOSITOR_RENDERER;
+    process.env.VIDEO_COMPOSITOR_RENDERER = 'remotion_primary';
     mockHydrate.mockReset().mockResolvedValue(makeBrand());
     mockGenerate.mockReset().mockResolvedValue(makeManifest());
     mockTranscribe.mockReset().mockResolvedValue({ words: [], pauses: [] });
@@ -164,8 +164,8 @@ describe('runComposeJob', () => {
     expect(resolveRendererSelector({ NODE_ENV: 'production' })).toBe('ffmpeg_hybrid');
   });
 
-  it('defaults non-production to Remotion-primary rollback renderer', () => {
-    expect(resolveRendererSelector({ NODE_ENV: 'test' })).toBe('remotion_primary');
+  it('defaults non-production to the FFmpeg hybrid renderer', () => {
+    expect(resolveRendererSelector({ NODE_ENV: 'test' })).toBe('ffmpeg_hybrid');
   });
 
   it('honors an explicit renderer selector', () => {
@@ -254,6 +254,14 @@ describe('runComposeJob', () => {
     expect(input.run_id).toBe('run-abc');
     expect(input.client_id).toBe('client-1');
     expect(input.platform).toBe('TikTok');
+  });
+
+  it('forwards use_case into manifest generation and preserves it on the render manifest', async () => {
+    await runComposeJob(makeJob(), makePayload({ use_case: 'ad' }), () => {});
+    const input = mockGenerate.mock.calls[0][0];
+    expect(input.use_case).toBe('ad');
+    const renderCall = mockRender.mock.calls[0][0];
+    expect(renderCall.manifest.use_case).toBe('ad');
   });
 
   it('overrides manifest width/height from video_format + target_resolution (9:16/720p)', async () => {
@@ -383,6 +391,12 @@ describe('runComposeJob', () => {
     await runComposeJob(makeJob(), makePayload(), (u) => updates.push(u));
     const done = updates[updates.length - 1];
     expect(done.validation_report_path).toMatch(/composed\.validation\.json$/);
+    expect(done.engagement_report_path).toMatch(/engagement\.validation\.json$/);
+  });
+
+  it('skips transcription when generate_captions is false', async () => {
+    await runComposeJob(makeJob(), makePayload({ generate_captions: false }), () => {});
+    expect(mockTranscribe).not.toHaveBeenCalled();
   });
 
   it('emits a "rendering" update that includes the final manifest', async () => {

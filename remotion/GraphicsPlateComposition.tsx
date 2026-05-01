@@ -25,7 +25,19 @@ export const GraphicsPlateComposition: React.FC<GraphicsPlateCompositionProps> =
   return (
     <StyleProvider style={editStyle}>
       <BrandProvider brand={brandProfile ?? { id: '', client_id: timeline.client_id }}>
-        <AbsoluteFill style={{ background: 'transparent' }}>
+        {/*
+          Force the page-level background to be transparent. The Remotion bundle
+          can default html/body to an opaque colour; without this shim, ProRes
+          4444 still encodes alpha but every frame pixel ends up fully opaque,
+          and the plate blacks out the underlying video when overlaid by ffmpeg.
+        */}
+        <style>{'html,body,#root,#__next{background:transparent !important;background-color:transparent !important;}'}</style>
+        <AbsoluteFill
+          style={{
+            background: 'transparent',
+            backgroundColor: 'transparent',
+          }}
+        >
           {plateType === 'caption_track' && timeline.captions ? (
             <CaptionTrack track={timeline.captions} />
           ) : null}
