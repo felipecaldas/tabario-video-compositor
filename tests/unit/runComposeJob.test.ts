@@ -11,6 +11,10 @@ jest.mock('../../src/brand/hydrator', () => ({
 jest.mock('../../src/manifest/generator', () => ({
   generateManifest: jest.fn(),
 }));
+jest.mock('../../src/manifest/slotFiller', () => ({
+  generateSlotFilledManifest: jest.fn(),
+  validateSlotFilling: jest.fn(() => []),
+}));
 jest.mock('../../src/renderer/renderWorker', () => ({
   renderComposition: jest.fn(),
 }));
@@ -38,6 +42,7 @@ jest.mock('../../src/timeline', () => ({
 import { resolveRendererSelector, runComposeJob } from '../../src/runner';
 import { hydrateBrandProfile } from '../../src/brand/hydrator';
 import { generateManifest } from '../../src/manifest/generator';
+import { generateSlotFilledManifest } from '../../src/manifest/slotFiller';
 import { renderComposition } from '../../src/renderer/renderWorker';
 import { validateFinalRender } from '../../src/renderer/finalValidation';
 import { renderHybridFfmpeg } from '../../src/renderer/ffmpegHybrid';
@@ -51,10 +56,12 @@ import {
   ComposeJob,
   CompositionManifest,
   HandoffPayload,
+
 } from '../../src/types';
 
 const mockHydrate = hydrateBrandProfile as unknown as jest.Mock;
 const mockGenerate = generateManifest as unknown as jest.Mock;
+const mockSlotFiller = generateSlotFilledManifest as unknown as jest.Mock;
 const mockRender = renderComposition as unknown as jest.Mock;
 const mockValidate = validateFinalRender as unknown as jest.Mock;
 const mockHybridRender = renderHybridFfmpeg as unknown as jest.Mock;
@@ -148,6 +155,7 @@ describe('runComposeJob', () => {
     process.env.VIDEO_COMPOSITOR_RENDERER = 'remotion_primary';
     mockHydrate.mockReset().mockResolvedValue(makeBrand());
     mockGenerate.mockReset().mockResolvedValue(makeManifest());
+    mockSlotFiller.mockReset().mockResolvedValue(makeManifest());
     mockTranscribe.mockReset().mockResolvedValue({ words: [], pauses: [] });
     mockProbeFps.mockReset().mockResolvedValue(32);
     // Default: ensureH264 is a no-op (returns the path untouched)
@@ -258,8 +266,9 @@ describe('runComposeJob', () => {
 
   it('forwards use_case into manifest generation and preserves it on the render manifest', async () => {
     await runComposeJob(makeJob(), makePayload({ use_case: 'ad' }), () => {});
-    const input = mockGenerate.mock.calls[0][0];
+    const input = mockSlotFiller.mock.calls[0][0];
     expect(input.use_case).toBe('ad');
+    expect(input.style_id).toBe('corporate_clean');
     const renderCall = mockRender.mock.calls[0][0];
     expect(renderCall.manifest.use_case).toBe('ad');
   });

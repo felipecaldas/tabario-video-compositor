@@ -11,11 +11,13 @@ import { ensureH264, probeDurationSeconds, probeFps } from '../postprocess/ffmpe
 import { hydrateBrandProfile, BrandProfileNotFoundError } from '../brand/hydrator';
 import { generateManifest } from '../manifest/generator';
 import { TemplateRegistry } from '../templates/registry';
+import { StyleRegistry, DEFAULT_STYLE_ID } from '../styles/registry';
 import { SceneSlot, SceneRole, DefaultTransition } from '../templates/schema';
 import { buildTimelineManifest } from '../timeline';
 import { renderGraphicsPlates } from '../renderer/graphicsPlates';
 import { renderHybridFfmpeg } from '../renderer/ffmpegHybrid';
 import { resolveRendererSelector } from '../runner';
+import { generateSlotFilledManifest } from '../manifest/slotFiller';
 
 const DATA_SHARED_BASE = process.env.DATA_SHARED_BASE ?? '/data/shared';
 
@@ -459,7 +461,7 @@ export async function runTestRender(options: TestRenderOptions): Promise<{ outpu
   return { outputPath, durationMs };
 }
 
-export type ManifestMode = 'stub' | 'llm';
+export type ManifestMode = 'stub' | 'llm' | 'template';
 
 interface RunDirManifestData {
   brief: Brief;
@@ -640,6 +642,8 @@ export interface RunTestRenderOptions {
   templateType?: string;
   /** When true, transcribe the voiceover and attach a caption_track to the manifest. */
   generateCaptions?: boolean;
+  /** EditStyle id — used when manifest_mode is 'template'. */
+  styleId?: string;
 }
 
 export async function runTestRenderFromRun(
@@ -657,6 +661,7 @@ export async function runTestRenderFromRun(
     targetFps,
     templateType,
     generateCaptions,
+    styleId,
   } = options;
 
   const runDir = join(basePath ?? DATA_SHARED_BASE, runId);
@@ -721,6 +726,57 @@ export async function runTestRenderFromRun(
       voiceover_filename: resolvedVoiceoverFilename,
       target_fps: effectiveTargetFps,
     });
+  } else if (manifestMode === 'template') {
+    // Slot-filling LLM mode: generate manifest by filling a UseCaseTemplate
+    const effectiveTemplateType = templateType ?? 'talking_head';
+    if (!TemplateRegistry.isValid(effectiveTemplateType)) {
+      throw new Error(
+        `Invalid template_type for slot-filling: ${effectiveTemplateType}. ` +
+        `Available: ${TemplateRegistry.list().map((t) => t.id).join(', ')}`,
+      );
+    }
+    const effectiveStyleId = styleId ?? DEFAULT_STYLE_ID;
+    if (!StyleRegistry.isValid(effectiveStyleId)) {
+      throw new Error(
+        `Invalid style_id for slot-filling: ${effectiveStyleId}. ` +
+        `Available: ${StyleRegistry.list().map((s) => s.id).join(', ')}`,
+      );
+    }
+
+    const runDirData = loadRunDirManifest(runDir);
+    const effectiveClientId = clientId ?? runDirData.client_id;
+    if (providedBrandProfile) {
+      effectiveBrandProfile = providedBrandProfile;
+    } else {
+      try {
+        effectiveBrandProfile = await hydrateBrandProfile(effectiveClientId, '');
+      } catch (err) {
+        if (err instanceof BrandProfileNotFoundError) {
+          console.warn(`[testRender] No brand profile found for client_id=${effectiveClientId}, falling back to TEST_BRAND_PROFILE`);
+          effectiveBrandProfile = TEST_BRAND_PROFILE;
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    const clipFilenames = clips.map((c) => c.filename);
+    const resolvedVoiceoverFilename = voiceoverFilename ?? 'voiceover.mp3';
+    console.log(
+      `[testRender] Generating slot-filled manifest: template=${effectiveTemplateType}, style=${effectiveStyleId}`,
+    );
+    manifest = await generateSlotFilledManifest({
+      run_id: runId,
+      client_id: effectiveClientId,
+      platform,
+      brief: runDirData.brief,
+      brand_profile: effectiveBrandProfile,
+      clip_filenames: clipFilenames,
+      voiceover_filename: resolvedVoiceoverFilename,
+      target_fps: effectiveTargetFps,
+      use_case: effectiveTemplateType,
+      style_id: effectiveStyleId,
+    });
   } else if (templateType) {
     manifest = buildTemplateManifest(
       templateType,
@@ -776,9 +832,11 @@ export async function runTestRenderFromRun(
     ? 'provided'
     : manifestMode === 'llm'
       ? 'llm'
-      : templateType
-        ? `template:${templateType}`
-        : 'stub';
+      : manifestMode === 'template'
+        ? `template:${templateType ?? 'talking_head'}`
+        : templateType
+          ? `template:${templateType}`
+          : 'stub';
   console.log(
     `[testRender] Manifest source=${manifestSource}, platform=${platform}, aspectRatio=${aspectRatio ?? '(auto)'}, ` +
       `client_id=${clientId ?? '(from run manifest)'}, brandProfileClientId=${effectiveBrandProfile.client_id}`,

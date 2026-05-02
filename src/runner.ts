@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join, basename } from 'path';
 import { hydrateBrandProfile } from './brand/hydrator';
 import { generateManifest } from './manifest/generator';
+import { generateSlotFilledManifest } from './manifest/slotFiller';
 import { normalizeAdManifest } from './manifest/adEngagement';
 import { renderComposition } from './renderer/renderWorker';
 import { validateFinalRender } from './renderer/finalValidation';
@@ -10,7 +11,9 @@ import { renderGraphicsPlates } from './renderer/graphicsPlates';
 import { applyPostProcessing, ensureH264, probeFps } from './postprocess/ffmpeg';
 import { transcribe } from './asr/transcribe';
 import { buildTimelineManifest } from './timeline';
-import { ComposeJob, HandoffPayload, Brief, BriefScene, ManifestScene, PlatformBriefModel, SceneBriefInput, VisualDirection } from './types';
+import { ComposeJob, HandoffPayload, Brief, BriefScene, ManifestScene, PlatformBriefModel, SceneBriefInput, VisualDirection, CompositionManifest } from './types';
+import { TemplateRegistry } from './templates/registry';
+import { DEFAULT_STYLE_ID } from './styles/registry';
 
 const DATA_SHARED_BASE = process.env.DATA_SHARED_BASE ?? '/data/shared';
 const RENDERER_ENV_KEY = 'VIDEO_COMPOSITOR_RENDERER';
@@ -237,17 +240,39 @@ export async function runComposeJob(
     const targetFps = await resolveTargetFps(payload);
     console.log(`[runner] Using target FPS ${targetFps} for run_id=${payload.run_id}`);
 
-    let manifest = await generateManifest({
-      run_id: payload.run_id,
-      client_id: payload.client_id,
-      platform: payload.platform,
-      brief: flatBrief,
-      brand_profile: brandProfile,
-      clip_filenames: clipFilenames,
-      voiceover_filename: voiceoverFilename,
-      target_fps: targetFps,
-      use_case: payload.use_case,
-    });
+    let manifest: CompositionManifest;
+    const effectiveStyleId = payload.style_id ?? DEFAULT_STYLE_ID;
+    const useSlotFiller = payload.use_case && TemplateRegistry.isValid(payload.use_case);
+
+    if (useSlotFiller) {
+      console.log(
+        `[runner] Using slot-filling generator: use_case=${payload.use_case}, style_id=${effectiveStyleId}`,
+      );
+      manifest = await generateSlotFilledManifest({
+        run_id: payload.run_id,
+        client_id: payload.client_id,
+        platform: payload.platform,
+        brief: flatBrief,
+        brand_profile: brandProfile,
+        clip_filenames: clipFilenames,
+        voiceover_filename: voiceoverFilename,
+        target_fps: targetFps,
+        use_case: payload.use_case!,
+        style_id: effectiveStyleId,
+      });
+    } else {
+      manifest = await generateManifest({
+        run_id: payload.run_id,
+        client_id: payload.client_id,
+        platform: payload.platform,
+        brief: flatBrief,
+        brand_profile: brandProfile,
+        clip_filenames: clipFilenames,
+        voiceover_filename: voiceoverFilename,
+        target_fps: targetFps,
+        use_case: payload.use_case,
+      });
+    }
     manifest = enforceManifestFps(manifest, targetFps);
     manifest = {
       ...manifest,

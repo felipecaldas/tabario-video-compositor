@@ -15,6 +15,7 @@ function logRequestSummary(
     aspect_ratio?: string;
     target_fps?: number;
     template_type?: string;
+    style_id?: string;
     manifest?: CompositionManifest;
     brand_profile?: BrandProfile;
   },
@@ -28,6 +29,7 @@ function logRequestSummary(
       `aspect_ratio=${body.aspect_ratio ?? '(auto)'}, ` +
       `target_fps=${body.target_fps ?? '(auto)'}, ` +
       `template_type=${body.template_type ?? '(none)'}, ` +
+      `style_id=${body.style_id ?? '(none)'}, ` +
       `manifest_supplied=${Boolean(body.manifest)}, ` +
       `brand_profile_supplied=${Boolean(body.brand_profile)}`,
   );
@@ -78,6 +80,7 @@ testRenderRouter.post('/from-run', async (req: Request, res: Response) => {
     target_fps,
     template_type,
     generate_captions,
+    style_id,
   } = req.body as {
     run_id?: string;
     client_id?: string;
@@ -90,6 +93,7 @@ testRenderRouter.post('/from-run', async (req: Request, res: Response) => {
     target_fps?: number;
     template_type?: string;
     generate_captions?: boolean;
+    style_id?: string;
   };
 
   logRequestSummary('/compose/test-render/from-run', {
@@ -100,6 +104,7 @@ testRenderRouter.post('/from-run', async (req: Request, res: Response) => {
     aspect_ratio,
     target_fps,
     template_type,
+    style_id,
     manifest,
     brand_profile,
   });
@@ -135,6 +140,7 @@ testRenderRouter.post('/from-run', async (req: Request, res: Response) => {
       targetFps: target_fps,
       templateType: template_type,
       generateCaptions: generate_captions,
+      styleId: style_id,
     });
     res.json(result);
   } catch (err: unknown) {

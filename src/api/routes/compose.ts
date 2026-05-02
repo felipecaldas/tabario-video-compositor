@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { ComposeJob, HandoffPayload, JobStatus } from '../../types';
 import { runComposeJob } from '../../runner';
+import { StyleRegistry } from '../../styles/registry';
+import { TemplateRegistry } from '../../templates/registry';
 
 export const composeRouter = Router();
 
@@ -60,6 +62,51 @@ composeRouter.post('/start', async (req: Request, res: Response) => {
   });
 
   return res.status(202).json({ compose_job_id: job.id, status: job.status });
+});
+
+/** GET /compose/styles — List all available edit styles */
+composeRouter.get('/styles', (_req: Request, res: Response) => {
+  const styles = StyleRegistry.list().map((style) => ({
+    id: style.id,
+    name: style.name,
+    description: style.description,
+    preview_thumbnail_url: style.preview_thumbnail_url,
+  }));
+  return res.json({ styles });
+});
+
+/** GET /compose/styles/:id — Get a single edit style by id */
+composeRouter.get('/styles/:id', (req: Request, res: Response) => {
+  const id = req.params.id;
+  if (!StyleRegistry.isValid(id)) {
+    return res.status(404).json({
+      error: `Unknown style id '${id}'`,
+      detail: `Available styles: ${StyleRegistry.list().map((s) => s.id).join(', ')}`,
+    });
+  }
+  return res.json(StyleRegistry.resolve(id));
+});
+
+/** GET /compose/templates — List all available use-case templates */
+composeRouter.get('/templates', (_req: Request, res: Response) => {
+  const templates = TemplateRegistry.list().map((template) => ({
+    id: template.id,
+    name: template.name,
+    description: template.description,
+  }));
+  return res.json({ templates });
+});
+
+/** GET /compose/templates/:id — Get a single use-case template by id */
+composeRouter.get('/templates/:id', (req: Request, res: Response) => {
+  const id = req.params.id;
+  if (!TemplateRegistry.isValid(id)) {
+    return res.status(404).json({
+      error: `Unknown template id '${id}'`,
+      detail: `Available templates: ${TemplateRegistry.list().map((t) => t.id).join(', ')}`,
+    });
+  }
+  return res.json(TemplateRegistry.resolve(id));
 });
 
 /** GET /compose/:id — Poll job status */
